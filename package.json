@@ -1,0 +1,36 @@
+{
+  "name": "smartolt-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/ssh2": "^1.15.5",
+    "next": "16.2.4",
+    "node-cron": "^4.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "ssh2": "^1.17.0",
+    "telnet-client": "^2.2.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} seed.ts"
+  }
+}

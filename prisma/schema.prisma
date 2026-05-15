@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model OLTDevice {
+  id               Int                @id @default(autoincrement())
+  name             String
+  ip_address       String
+  telnet_port      Int                @default(23)
+  telnet_user      String?
+  telnet_pass      String?
+  protocol         String?            @default("telnet") // ssh or telnet
+  vendor           String?            @default("zte")    // zte or huawei
+  snmp_ro          String?            @default("public")
+  snmp_rw          String?            @default("private")
+  snmp_port        Int                @default(161)
+  snmp_version     String?            @default("v2c")
+  timeout          Int                @default(10)
+  signal_threshold Float?             @default(-27.0)
+  manufacturer     String?            @default("ZTE")
+  hardware_version String?
+  pon_types        String?            @default("GPON")
+  cpu_load         Float?             @default(0)
+  memory_load      Float?             @default(0)
+  temperature      Float?             @default(0)
+  last_polled      DateTime?
+  configuredOnus   ONUConfigured[]
+  unconfiguredOnus ONUUnconfigured[]
+  vlans            VLAN[]
+}
+
+model ONUUnconfigured {
+  id           Int       @id @default(autoincrement())
+  sn_mac       String    @unique
+  olt_id       Int
+  olt          OLTDevice @relation(fields: [olt_id], references: [id])
+  pon_port     String?   // e.g. gpon-olt_1/1/1
+  onu_id       String?   // e.g. 1
+  model        String?   // e.g. ZTE-F609
+  signal       Float?    // Signal before auth
+  discoveredAt DateTime  @default(now())
+}
+
+model Zone {
+  id    Int             @id @default(autoincrement())
+  name  String          @unique
+  onus  ONUConfigured[]
+  odbs  ODB[]
+}
+
+model SpeedProfile {
+  id         Int             @id @default(autoincrement())
+  name       String
+  upload     Int             // in kbps
+  download   Int             // in kbps
+  onus       ONUConfigured[]
+  authPresets AuthPreset[]
+}
+
+model VLAN {
+  id          Int       @id @default(autoincrement())
+  vlan_id     Int
+  description String?
+  type        String?   @default("Residential") // Residential, Management, VoIP, etc.
+  olt_id      Int
+  olt         OLTDevice @relation(fields: [olt_id], references: [id])
+}
+
+model ONUType {
+  id                    Int             @id @default(autoincrement())
+  name                  String          @unique
+  pon_type              String          // GPON/EPON
+  capability            String          @default("Bridging") // Bridging or Bridging/Routing
+  eth_ports             Int             @default(1)
+  wifi_ssids            Int             @default(0)
+  pots_ports            Int             @default(0) // VoIP ports
+  catv                  Boolean         @default(false)
+  allow_custom_profiles Boolean         @default(false)
+  onus                  ONUConfigured[]
+}
+
+model ONUConfigured {
+  id             Int           @id @default(autoincrement())
+  sn_mac         String        @unique
+  name           String
+  olt_id         Int
+  olt            OLTDevice     @relation(fields: [olt_id], references: [id])
+  pon_port       String?       // Persistent Port
+  onu_id         String?       // Persistent ONU ID on that port
+  vlan           Int
+  mode           String        // Bridge/Route
+  pppoe_user     String?
+  pppoe_pass     String?
+  status         String?       @default("Offline") // Online, Offline
+  signal         Float?        // Rx Power
+  signal_tx      Float?        // Tx Power
+  distance       String?
+  uptime         String?
+  enabled        Boolean       @default(true)
+  offline_reason String?       // Power Failed, LOS, etc.
+  onu_type_id    Int?
+  onu_type       ONUType?      @relation(fields: [onu_type_id], references: [id])
+  zone_id        Int?
+  zone           Zone?         @relation(fields: [zone_id], references: [id])
+  profile_id     Int?
+  profile        SpeedProfile? @relation(fields: [profile_id], references: [id])
+  odb_id         Int?
+  odb            ODB?          @relation(fields: [odb_id], references: [id])
+  external_id    String?
+  address        String?
+  contact        String?
+  notes          String?
+  last_online    DateTime?
+  last_rx_traffic Float?         @default(0) // in Mbps
+  last_tx_traffic Float?         @default(0) // in Mbps
+  wan_mode       String?         @default("PPPoE") // PPPoE, Hotspot, Static, etc.
+  mgmt_ip        String?
+  voip_status    String?         @default("Down") // Up, Down
+  tv_status      String?         @default("Down") // Up, Down
+  notifications   Notification[]
+  createdAt      DateTime      @default(now())
+}
+
+model ODB {
+  id      Int             @id @default(autoincrement())
+  name    String
+  ports   Int             @default(8)
+  zone_id Int
+  zone    Zone            @relation(fields: [zone_id], references: [id])
+  lat     Float?
+  lng     Float?
+  onus    ONUConfigured[]
+}
+
+
+
+model SystemConfig {
+  id           Int     @id @default(1)
+  system_title String  @default("SmartOLT Clone")
+  timezone     String  @default("Asia/Jakarta")
+  allowed_ips  String?
+  language     String  @default("en")
+  smtp_host    String?
+  smtp_port    Int     @default(587)
+  smtp_user    String?
+  smtp_pass    String?
+  sms_api_key  String?
+}
+
+model VPNTunnel {
+  id          Int     @id @default(autoincrement())
+  name        String
+  subnet      String?
+  status      String  @default("Disconnected")
+}
+
+model AuthPreset {
+  id         Int           @id @default(autoincrement())
+  name       String
+  sn_pattern String?       // e.g. ZTEG*
+  vlan       Int
+  mode       String        @default("route")
+  profile_id Int
+  profile    SpeedProfile  @relation(fields: [profile_id], references: [id])
+  olt_id     Int?
+  zone_id    Int?
+}
+
+
+model TR069Profile {
+  id      Int     @id @default(autoincrement())
+  name    String
+  acs_url String
+}
+
+model MikrotikRouter {
+  id         Int     @id @default(autoincrement())
+  name       String
+  ip_address String
+  api_port   Int     @default(8728)
+  username   String
+  password   String
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  action    String   // e.g. "Authorize ONU", "Reboot ONU"
+  details   String?
+  status    String   @default("Success") // Success, Error
+  user_id   Int?
+  user      User?    @relation(fields: [user_id], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model SignalHistory {
+  id        Int      @id @default(autoincrement())
+  onu_id    Int
+  signal    Float
+  createdAt DateTime @default(now())
+}
+
+model StatusHistory {
+  id        Int      @id @default(autoincrement())
+  onu_id    Int
+  status    String   // Online, Offline
+  reason    String?  // Power Failed, LOS, etc.
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id         Int           @id @default(autoincrement())
+  name       String
+  email      String        @unique
+  password   String
+  role       String        @default("tech_user") // admin, tech_user
+  status     String        @default("Active")
+  last_login DateTime?
+  logs       ActivityLog[]
+  created_at DateTime      @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  message   String
+  type      String   @default("info") // info, warning, error
+  onu_id    Int?
+  onu       ONUConfigured? @relation(fields: [onu_id], references: [id])
+  is_read   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
