@@ -26,12 +26,13 @@ export async function GET(
       vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 
-    const attenuation = await readOltAttenuation(creds, onu.pon_port || '');
+    const onuInterface = onu.pon_port ? `${onu.pon_port.replace('olt', 'onu')}:${onu.onu_id}` : '';
+    const attenuation = await readOltAttenuation(creds, onuInterface);
     
     // Ambil detail tambahan (Uptime, Distance)
     let extraDetails = {};
     try {
-        extraDetails = await getOnuDetails(creds, onu.pon_port || '', onu.onu_id || '');
+        extraDetails = await getOnuDetails(creds, onuInterface, onu.onu_id || '');
     } catch (e) {
         console.warn("Gagal ambil detail tambahan", e);
     }

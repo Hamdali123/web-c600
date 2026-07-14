@@ -1,0 +1,230 @@
+show gpon onu detail-info gpon_onu-1/2/2:14
+
+ONU interface:          gpon_onu-1/2/2:14
+  Name:                 ********
+  Splitter:             
+  Type:                 ALL
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          working
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        ZTEGCA791A9D
+  Password:             
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         1312m
+  Online Duration:      361h 29m 18s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable 
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-06-19 16:53:52    0000-00-00 00:00:00              
+   2   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   3   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   4   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   5   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   6   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   7   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   8   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   9   0000-00-00 00:00:00    0000-00-00 00:00:00              
+  10   0000-00-00 00:00:00    0000-00-00 00:00:00              
+
+
+ZXAN#
+show gpon onu detail-info gpon_onu-1/2/2:15
+
+ONU interface:          gpon_onu-1/2/2:15
+  Name:                 ********
+  Splitter:             
+  Type:                 ALL
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          working
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        ZTEGCC39E8EE
+  Password:             
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         1477m
+  Online Duration:      164h 13m 54s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable 
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-06-20 17:11:30    2026-06-20 17:25:17     DyingGasp 
+   2   2026-06-20 17:28:33    2026-06-20 17:29:39     DyingGasp 
+   3   2026-06-20 17:32:26    2026-06-27 22:07:30     DyingGasp 
+   4   2026-06-27 22:09:16    0000-00-00 00:00:00              
+   5   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   6   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   7   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   8   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   9   0000-00-00 00:00:00    0000-00-00 00:00:00              
+  10   0000-00-00 00:00:00    0000-00-00 00:00:00              
+
+
+ZXAN#
+show gpon onu detail-info gpon_onu-1/2/3:33
+
+ONU interface:          gpon_onu-1/2/3:33
+  Name:                 ********
+  Splitter:             
+  Type:                 ALL
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          working
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        ZTEGCE3A835D
+  Password:             
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         2424m
+  Online Duration:      216h 53m 27s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable 
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-06-25 17:28:12    2026-06-25 17:28:59     Reboot   
+   2   2026-06-25 17:29:43    0000-00-00 00:00:00              
+   3   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   4   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   5   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   6   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   7   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   8   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   9   0000-00-00 00:00:00    0000-00-00 00:00:00              
+  10   0000-00-00 00:00:00    0000-00-00 00:00:00              
+
+
+ZXAN#
+show gpon onu detail-info gpon_onu-1/2/3:34
+
+ONU interface:          gpon_onu-1/2/3:34
+  Name:                 ********
+  Splitter:             
+  Type:                 ALL
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          working
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        ZTEGCC3E866E
+  Password:             
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         2436m
+  Online Duration:      126h 29m 04s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable 
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-06-28 21:12:59    2026-06-29 11:52:38     Reboot   
+   2   2026-06-29 11:54:06    0000-00-00 00:00:00              
+   3   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   4   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   5   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   6   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   7   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   8   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   9   0000-00-00 00:00:00    0000-00-00 00:00:00              
+  10   0000-00-00 00:00:00    0000-00-00 00:00:00              
+
+
+ZXAN#
+show gpon onu detail-info gpon_onu-1/2/13:75
+
+ONU interface:          gpon_onu-1/2/13:75
+  Name:                 ********
+  Splitter:             
+  Type:                 ALL
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          working
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        ZTEGC6071A09
+  Password:             
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         1037m
+  Online Duration:      145h 23m 13s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable 
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-06-28 16:58:00    2026-06-28 16:59:26     LOSi     
+   2   2026-06-28 16:59:57    0000-00-00 00:00:00              
+   3   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   4   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   5   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   6   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   7   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   8   0000-00-00 00:00:00    0000-00-00 00:00:00              
+   9   0000-00-00 00:00:00    0000-00-00 00:00:00              
+  10   0000-00-00 00:00:00    0000-00-00 00:00:00              
+
+
+ZXAN#

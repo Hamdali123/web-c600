@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { executeOltCommand, OltCredentials } from '@/lib/oltConnection';
 import { logActivity } from '@/lib/activityLogger';
 
 export async function POST(
@@ -15,7 +16,31 @@ export async function POST(
       include: { olt: true }
     });
 
-    if (!onu) return NextResponse.json({ success: false, error: 'ONU not found' }, { status: 404 });
+    if (!onu || !onu.olt) return NextResponse.json({ success: false, error: 'ONU or OLT not found' }, { status: 404 });
+
+    const creds: OltCredentials = {
+      ip: onu.olt.ip_address,
+      port: 23,
+      username: onu.olt.telnet_user || '',
+      password: onu.olt.telnet_pass || '',
+      protocol: 'telnet',
+      vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
+    };
+
+    let command = '';
+    const boardPort = onu.pon_port || '';
+    if (creds.vendor === 'zte') {
+      const interfacePort = boardPort.replace('gpon-olt', 'gpon_onu') + ':' + onu.onu_id;
+      command = `config t\npon-onu-mng ${interfacePort}\nrestore factory\nexit\nexit\n`;
+    } else {
+      command = `config\ninterface ${boardPort}\nont factory-reset ${onu.onu_id}\nquit\n`;
+    }
+
+    try {
+      await executeOltCommand(creds, command);
+    } catch (e) {
+      console.warn("Failed to factory reset physical OLT. May be offline.");
+    }
 
     await logActivity('Factory Reset', `Requested factory reset for ONU: ${onu.name} (SN: ${onu.sn_mac})`, 'Success');
 

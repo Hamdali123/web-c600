@@ -1,34 +1,64 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const unconfiguredCount = await prisma.oNUUnconfigured.count();
+    const { searchParams } = new URL(request.url);
+    const oltIdStr = searchParams.get('olt_id');
+    const oltId = oltIdStr && oltIdStr !== 'all' ? parseInt(oltIdStr) : undefined;
+
+    const filter = oltId ? { olt_id: oltId } : {};
+
+    const unconfiguredCount = await prisma.oNUUnconfigured.count({
+      where: filter
+    });
     
     const onlineCount = await prisma.oNUConfigured.count({
-      where: { status: 'Online' }
+      where: { ...filter, status: 'Online' }
     });
     
     const pwrFailCount = await prisma.oNUConfigured.count({
-      where: { offline_reason: 'Power Failed' }
-    });
-
-    const losCount = await prisma.oNUConfigured.count({
-      where: { offline_reason: 'LOS' }
-    });
-
-    const totalOffline = await prisma.oNUConfigured.count({
-      where: { status: 'Offline' }
-    });
-
-    const lowSignalsCount = await prisma.oNUConfigured.count({
       where: {
-        status: 'Online',
-        signal: { lt: -25 }
+        ...filter,
+        OR: [
+          { offline_reason: { contains: 'power' } },
+          { offline_reason: { contains: 'dying' } }
+        ]
       }
     });
 
-    const totalAuthorized = await prisma.oNUConfigured.count();
+    const losCount = await prisma.oNUConfigured.count({
+      where: {
+        ...filter,
+        offline_reason: { contains: 'los' }
+      }
+    });
+
+    const totalOffline = await prisma.oNUConfigured.count({
+      where: { ...filter, status: 'Offline' }
+    });
+
+    const signalWarningCount = await prisma.oNUConfigured.count({
+      where: {
+        ...filter,
+        status: 'Online',
+        signal: { lte: -27, gt: -30 }
+      }
+    });
+
+    const signalCriticalCount = await prisma.oNUConfigured.count({
+      where: {
+        ...filter,
+        status: 'Online',
+        signal: { lte: -30 }
+      }
+    });
+
+    const lowSignalsCount = signalWarningCount + signalCriticalCount;
+
+    const totalAuthorized = await prisma.oNUConfigured.count({
+      where: filter
+    });
 
     const olts = await prisma.oLTDevice.findMany({
        select: { 
@@ -39,13 +69,38 @@ export async function GET() {
 
     const recentLogs = await prisma.activityLog.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 5
+      take: 6
     });
 
     const notifications = await prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
       take: 10
     });
+
+    // Calculate last 7 days authorizations grouped by day
+    const authPerDay = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const startOfDay = new Date(d.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(d.setHours(23, 59, 59, 999));
+
+      const count = await prisma.oNUConfigured.count({
+        where: {
+          ...filter,
+          createdAt: {
+            gte: startOfDay,
+            lte: endOfDay
+          }
+        }
+      });
+
+      authPerDay.push({
+        date: startOfDay.toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        gpon_total: count,
+        epon_total: 0
+      });
+    }
 
     return NextResponse.json({
       unconfigured: unconfiguredCount,
@@ -55,9 +110,12 @@ export async function GET() {
       los: losCount,
       totalAuthorized: totalAuthorized,
       lowSignals: lowSignalsCount,
+      signalWarning: signalWarningCount,
+      signalCritical: signalCriticalCount,
       olts: olts,
       recentLogs: recentLogs,
-      notifications: notifications
+      notifications: notifications,
+      authPerDay: authPerDay
     });
   } catch (error) {
     console.error(error);

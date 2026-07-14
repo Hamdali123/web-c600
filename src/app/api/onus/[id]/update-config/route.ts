@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, vlan, profileId, externalId, address, zoneId, contact, notes, wan_mode, mgmt_ip } = body;
+    const { name, vlan, profileId, externalId, address, zoneId, odbId, odbPort, lat, lng, contact, notes, wan_mode, mgmt_ip } = body;
 
     const onu = await prisma.oNUConfigured.update({
       where: { id: parseInt(id) },
@@ -20,6 +20,10 @@ export async function POST(
         external_id: externalId,
         address: address,
         zone_id: zoneId ? parseInt(zoneId) : undefined,
+        odb_id: odbId ? parseInt(odbId) : undefined,
+        odb_port: odbPort || undefined,
+        lat: lat || undefined,
+        lng: lng || undefined,
         contact: contact,
         notes: notes,
         wan_mode: wan_mode,

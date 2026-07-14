@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta http-equiv="content-type" content="text/html; utf-8">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Language" content="en">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="https://sanwanay.smartolt.com/favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="https://sanwanay.smartolt.com/favicon.ico" type="image/x-icon" />
+    
+  <title>Add OLT - SANWANAY NETWORK</title>
+
+  <!-- Bootstrap Core CSS -->
+  <link href="/vendor/bootstrap/css/bootstrap-custom.css?v=3.52.0.24" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/bootstrap-multiselect.css?v=3.52.0.20" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/styles.css?v=3.52.0.24" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/toast.css?v=3.52.0.20" rel="stylesheet">
+
+  
+  <!-- Custom Fonts -->
+  <link href="/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+  <!-- Message box CSS -->
+  <link href="/vendor/jquery-message-box-2.2.1/src/messagebox.css" rel="stylesheet" type="text/css">
+
+  
+  <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+  <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+  <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+  <!-- jQuery -->
+  <script src="/vendor/jquery/jquery.min.js"></script>
+
+  <!-- Toast alerts -->
+  <script src="/vendor/bootstrap/js/toast.js"></script>
+
+  <!-- Pauses recurring AJAX polling while the tab is hidden OR the user has been idle, resumes on focus / activity. -->
+  <script src="/vendor/smartolt/scripts/polling.js?v=3.52.0.3"></script>
+
+  
+</head>
+
+<body>
+<script type="text/javascript">
+$( document ).ready(function() {
+	$.ajaxSetup({
+		cache: false
+	});
+	
+	window.jqxhrs = [];
+
+      window.registerJqxhr = function(jqxhr) {
+        jqxhrs.push(jqxhr);
+      }
+
+      window.abortJqxhr = function() {
+        for (var i = jqxhrs.length - 1; i >= 0; i--) {
+          if (jqxhrs[i]) {
+            jqxhrs[i].abort();
+          }
+        }
+
+        window.jqxhrs = [];
+      }
+
+      $(window).bind("beforeunload", function(event) {
+        abortJqxhr();
+      });
+
+      function unregisterJqxhr(event, jqxhr, settings) {
+        var idx = $.inArray(jqxhr, jqxhrs);
+        if (idx != -1) {
+          jqxhrs.splice(idx, 1);
+        }
+      }
+
+      $(document).ajaxComplete(unregisterJqxhr);
+
+      config = {
+        X_TOKEN: '9C23F19BE06B4BEB93046ECFDF50FF91'
+      }
+    });
+  </script>
+
+  <div id="content-wrapper">
+    <div class="navbar navbar-default navbar-fixed-top default-menu">
+      <div class="container">
+        <div class="navbar-header">
+          <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#navbar-main" aria-expanded="false" aria-controls="navbar">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand text-ellipsis max-width-250" href="/" title="SANWANAY NETWORK">SANWANAY NETWORK</a>
+        </div>
+
+        <div class="navbar-collapse collapse" id="navbar-main">
+          <ul class="nav navbar-nav">
+
+                        
+              <li><a href="/onu/unconfigured">Unconfigured</a></li>
+            
+                          <li><a href="/onu/configured">Configured</a></li>
+            
+            
+                        	                <li><a href="https://sanwanay.smartolt.com/graphs">Graphs</a></li>
+                                                <li><a href="https://sanwanay.smartolt.com/diagnostics">Diagnostics</a></li>
+                
+                                <li><a href="https://sanwanay.smartolt.com/reports/tasks">Tasks</a></li>
+                                
+                                 <li class="dropdown">
+                  <a class="dropdown-toggle" data-toggle="dropdown" href="#" id="settings">Reports <span class="caret"></span></a>
+                  <ul class="dropdown-menu" aria-labelledby="settings">
+                  	                    <li><a href="https://sanwanay.smartolt.com/reports/authorizations/list">Authorizations</a></li>
+                                                            <li><a href="https://sanwanay.smartolt.com/reports/export">Export</a></li>
+                                                            <li><a href="https://sanwanay.smartolt.com/reports/import">Import</a></li>
+                                                          </ul>
+                </li>
+                
+                                    <li><a href="#saveConfigModal" class="save-configuration-anchor" data-toggle="modal">Save config</a></li>
+                                
+              <li class="dropdown">
+                <a class="dropdown-toggle" data-toggle="dropdown" href="#" id="settings">Settings <span class="caret"></span></a>
+                <ul class="dropdown-menu" aria-labelledby="settings">
+
+                                        <li><a href="/locations/listing">Zones</a></li>
+                    
+                                        <li><a href="/odbs/listing">ODBs</a></li>
+                    
+                                        <li><a href="/onu_types/listing">ONU types</a></li>
+                    
+                                        <li><a href="/speed_profiles">Speed profiles</a></li>
+                    
+                                        <li><a href="/olt">OLTs</a></li>
+                    
+                                        <li><a href="/system_config">VPN & TR069</a></li>
+                    
+                                        <li><a href="/onu_authorization_presets/listing">Authorization presets</a></li>
+                    
+                    
+                                        <li><a href="/general">General</a></li>
+                    
+                                        <li><a href="/general/listing/billing">Billing</a></li>
+                                    </ul>
+              </li>
+
+              
+            
+          </ul>
+
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="/auth" title="Edit user mohamadsanwani9@gmail.com"><i class="fa fa-user glyphicon-white font-size-20"> </i></a></li>
+            <li><a href="/auth/logout"><i class="glyphicon glyphicon-off glyphicon glyphicon-white"> </i> Log out</a></li>
+          </ul>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="container">
+
+<div class="container-fluid content-wrap">
+	<h2>Add OLT</h2>
+		
+	
+	
+	<form action="https://sanwanay.smartolt.com/olt/add" class="form-horizontal" id="add_settings" method="post" accept-charset="utf-8">
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="name">Name</label>
+		<div class="col-sm-8">
+			<input type="text" id="name" name="name" class="form-control" value=""
+			pattern="^.{1,100}$"
+			title="The name of your OLT"
+			data-invalidmsg="Please specify a name for the OLT (between 1 and 100 characters)"></input>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="olt_ip">OLT IP or FQDN</label>
+		<div class="col-sm-8">
+			<input type="text" id="olt_ip" name="olt_ip" class="form-control" value=""
+			pattern="^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^[a-zA-Z0-9]+[a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$"
+			title="The OLT IPv4 address or a valid FQDN that points to it"
+			data-invalidmsg="Only valid IPv4 or FQDN addresses are allowed for OLT IP"></input>
+		</div>
+	</div>
+
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="telnet_port">Telnet TCP port</label>
+		<div class="col-sm-8">
+			<input type="text" id="telnet_port" name="telnet_port" class="form-control" value="2333"
+			pattern="^[0-9]{1,5}$" 
+			title="The port for telnet service, for ex: 2333"
+			data-invalidmsg="Telnet port needs to be a number in range 1-65535, example: 2333"></input>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="olt_user">OLT telnet username</label>
+		<div class="col-sm-8">
+			<input type="text" id="olt_user" name="olt_user" class="form-control" value=""
+			pattern="^[a-z0-9_-]{1,20}$"
+			data-invalidmsg="The user can have maximum 20 characters, only lowercase letters, numbers, underscore or dash are permitted."
+			title="Only lowercase letters, numbers, underscore or dash are permitted. Maximum 20 characters"></input>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="olt_password">OLT telnet password</label>
+		<div class="col-sm-8">
+			<input type="text" id="olt_password" name="olt_password" class="form-control" value=""
+			pattern="^[!-~]{3,30}$"
+			title="The OLT telnet password of the above user"
+			data-invalidmsg="The telnet password must have maximum 20 non space characters"></input>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="snmp_ro_community">Snmp readonly community</label>
+		<div class="col-sm-8">
+			<input type="text" id="snmp_ro_community" name="snmp_ro_community" class="form-control" value="hbqct.2fYg9L"
+			pattern="^[!-~]{6,25}$"
+			title="Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)"
+			data-invalidmsg="The SNMP read-only community must have between 6 and 25 characters (letters, numbers, special characters)"
+			data-huawei-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9])[!-~]{12,25}$"
+			data-huawei-msg="SNMP community must be at least 12 characters with 1 lowercase, 1 uppercase, and 1 special character"></input>
+			<div><span class="help-block small">Will be automatically created on the OLT</span></div>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="snmp_rw_community">Snmp readwrite community</label>
+		<div class="col-sm-8">
+			<input type="text" id="snmp_rw_community" name="snmp_rw_community" class="form-control" value="p8qfOamnoQ~5"
+			pattern="^[!-~]{6,25}$"
+			title="Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)"
+			data-invalidmsg="The SNMP read-write community must have between 6 and 25 characters (letters, numbers, special characters)"
+			data-huawei-pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9])[!-~]{12,25}$"
+			data-huawei-msg="SNMP community must be at least 12 characters with 1 lowercase, 1 uppercase, and 1 special character"></input>
+			<div><span class="help-block small">Will be automatically created on the OLT</span></div>
+		</div>
+	</div>
+		
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="snmp_port">SNMP UDP port</label>
+		<div class="col-sm-8">
+			<input type="text" id="snmp_port" name="snmp_port" class="form-control" value="2161"
+			pattern="^[0-9]{1,5}$" 
+			title="The port for SNMP access, for ex: 2161"
+			data-invalidmsg="SNMP port needs to be a number in range 1-65535, example: 2161"></input>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="iptv">IPTV module</label>
+		<div class="col-sm-8 checkbox padding-top">
+			<label>
+				<input type="checkbox" name="iptv" value="1"  id="iptv" />
+ Enable			</label>
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="manufacturer">Olt manufacturer</label>
+		<div class="col-sm-8">
+			<select name="manufacturer" id="manufacturer" class="form-control">
+<option value="huawei">Huawei</option>
+<option value="zte">ZTE</option>
+</select>
+		</div>
+	</div>
+
+	<div class="form-group">
+		<label class="control-label col-sm-2" for="olt_hardware_version">OLT hardware version</label>
+		<div class="col-sm-8">
+			<select name="olt_hardware_version" id="olt_hardware_version" class="form-control">
+			</select>		
+			<input type="hidden" id="selected_olt_type" value="huawei" />
+			<input type="hidden" id="selected_olt_hardware" value="Huawei-EA5800-X15" />	
+		</div>
+	</div>
+	
+	<div class="form-group" id="olt_version_group">
+		<label class="control-label col-sm-2" for="olt_version">OLT software version</label>
+		<div class="col-sm-8">
+			<select name="olt_version" id="olt_version" class="form-control">
+</select>
+			<input type="hidden" id="olt_version_hidden_huawei" name="olt_version_huawei" value="R018" disabled />
+			<input type="hidden" id="olt_version_hidden_zte" name="olt_version_zte" value="2" disabled />
+		</div>
+	</div>
+	
+	<div class="form-group">
+		<label class="control-label col-sm-2 radio-inline" for="supported_pon_types">Supported PON types</label>
+		<div class="col-sm-8">
+			<label class="radio-inline"><input type="radio" name="supported_pon_types" value="GPON" checked="checked"  id="GPON" />
+ GPON</label>
+			<label class="radio-inline"><input type="radio" name="supported_pon_types" value="EPON"  id="EPON" />
+ EPON</label>
+			<label class="radio-inline"><input type="radio" name="supported_pon_types" value="GPON+EPON"  id="GPONEPON" />
+ GPON+EPON</label>
+		</div>
+	</div>
+	
+	<div class="form-actions">
+		<div class="col-sm-2"></div>
+		<div class="col-sm-8">
+			<button type="submit" class="btn btn-primary olt-submit"><i class="glyphicon glyphicon-file glyphicon glyphicon-white"></i> Save</button>
+			<a href="/olt" class="btn btn-link">Cancel</a>
+			<button type="submit" name="test_connection" value="1" class="btn btn-success pull-right">Test connection</button>
+		</div>
+	</div>
+
+	</form></div>
+
+<script src="/vendor/smartolt/scripts/common.js?v=3.52.0.22"></script>
+
+<script type="text/javascript">
+
+$(document).ready(function()  {
+
+	var olt_software_versions = [{"id":"1","name":"1.2","display_name":"1.2.x","generation":"C300"},{"id":"15","name":"1.2","display_name":"1.2.x","generation":"C200"},{"id":"13","name":"1.1.C6xx","display_name":"1.x.x","generation":"C600"},{"id":"2","name":"2","display_name":"2.x","generation":"C300"},{"id":"9","name":"R008","display_name":"R008","generation":"MA"},{"id":"3","name":"R009","display_name":"R009","generation":"MA"},{"id":"18","name":"R010","display_name":"R010","generation":"MA"},{"id":"7","name":"R011","display_name":"R011","generation":"MA"},{"id":"14","name":"R012","display_name":"R012","generation":"MA"},{"id":"8","name":"R013","display_name":"R013","generation":"MA"},{"id":"4","name":"R014","display_name":"R014","generation":"MA"},{"id":"5","name":"R015","display_name":"R015","generation":"MA"},{"id":"6","name":"R016","display_name":"R016","generation":"MA"},{"id":"10","name":"R017","display_name":"R017","generation":"MA"},{"id":"11","name":"R018","display_name":"R018","generation":"MA"},{"id":"12","name":"R019","display_name":"R019","generation":"MA"},{"id":"16","name":"R020","display_name":"R020","generation":"MA"},{"id":"17","name":"R021","display_name":"R021","generation":"MA"},{"id":"19","name":"R022","display_name":"R022","generation":"MA"},{"id":"20","name":"R023","display_name":"R023","generation":"MA"},{"id":"21","name":"R024","display_name":"R024","generation":"MA"},{"id":"22","name":"R025","display_name":"R025","generation":"MA"},{"id":"23","name":"R026","display_name":"R026","generation":"MA"}];
+
+	var olt_types = [{"id":"26","name":"Huawei-EA5800-X15","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"27","name":"Huawei-EA5800-X17","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"21","name":"Huawei-EA5800-X2","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"25","name":"Huawei-EA5800-X7","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"22","name":"Huawei-EA5801-GP08","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"28","name":"Huawei-EA5801E-FL16-H1","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"29","name":"Huawei-EA5801E-GP04-H1","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"30","name":"Huawei-EA5801E-GP04-H2","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"31","name":"Huawei-EA5801E-GP08-H2","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"32","name":"Huawei-EA5801E-GP08-H3","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"23","name":"Huawei-EA5801E-GP16","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"5","name":"Huawei-MA5600","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"14","name":"Huawei-MA5600T","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"6","name":"Huawei-MA5603","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"33","name":"Huawei-MA5603T","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"7","name":"Huawei-MA5608T","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"8","name":"Huawei-MA5680T","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"9","name":"Huawei-MA5683T","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"12","name":"Huawei-MA5800-X15","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"13","name":"Huawei-MA5800-X17","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"10","name":"Huawei-MA5800-X2","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"11","name":"Huawei-MA5800-X7","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"35","name":"Huawei-MA5801-FL04-H1","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"34","name":"Huawei-MA5801-FL16-H1","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"36","name":"Huawei-MA5801-GP08","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"37","name":"Huawei-MA5801-GP16","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"24","name":"Huawei-MA5801E-GP16","shelf":"0","type":"huawei","generation":"MA","onu_prefix":"-onu_"},{"id":"3","name":"ZTE-C220","shelf":"0","type":"zte","generation":"C200","onu_prefix":"-onu_"},{"id":"1","name":"ZTE-C300","shelf":"1","type":"zte","generation":"C300","onu_prefix":"-onu_"},{"id":"38","name":"ZTE-C300M","shelf":"1","type":"zte","generation":"C300","onu_prefix":"-onu_"},{"id":"2","name":"ZTE-C320","shelf":"1","type":"zte","generation":"C300","onu_prefix":"-onu_"},{"id":"18","name":"ZTE-C350","shelf":"1","type":"zte","generation":"C300","onu_prefix":"-onu_"},{"id":"39","name":"ZTE-C350M","shelf":"1","type":"zte","generation":"C300","onu_prefix":"-onu_"},{"id":"15","name":"ZTE-C600","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"19","name":"ZTE-C610","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"40","name":"ZTE-C610L","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"20","name":"ZTE-C620","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"16","name":"ZTE-C650","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"17","name":"ZTE-C680","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"43","name":"ZTE-C69E-15","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"41","name":"ZTE-C69E-2","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"},{"id":"42","name":"ZTE-C69E-7","shelf":"1","type":"zte","generation":"C600","onu_prefix":"_onu-"}];
+
+	function fillOltHardwareList() {
+		var selectedManufacturer = $("#manufacturer").val();
+        var $oltSelect = $("#olt_hardware_version");
+
+        // Clear existing options
+        $oltSelect.empty();
+
+        // Add filtered options
+        olt_types.forEach(function (olt) {
+            if (selectedManufacturer === "" || olt.type === selectedManufacturer) {
+                $oltSelect.append($('<option>', { value: olt.id, text: olt.name, 'data-generation': olt.generation, selected: olt.id == 0 }));
+            }
+        });
+	}
+
+	fillOltHardwareList();
+
+	$("#manufacturer").on("change", function () {
+		fillOltHardwareList();
+
+		// Also update software versions after hardware list is populated
+		setTimeout(function() {
+			fillSwVersions( $('#olt_hardware_version option:selected').data('generation') );
+		}, 30);
+
+		// Show/hide Huawei/ZTE requirements
+		toggleHuaweiRequirements();
+	});
+
+	$("#olt_hardware_version").change(function() {
+		fillSwVersions( $('#olt_hardware_version option:selected').data('generation') );
+
+		// Update ZTE hidden version when hardware changes
+		if ($("#manufacturer").val() === 'zte') {
+			var generation = $('#olt_hardware_version option:selected').data('generation');
+			var highestVersion = getHighestVersionForGeneration(generation);
+			$("#olt_version_hidden_zte").val(highestVersion);
+		}
+	});
+
+	function toggleHuaweiRequirements() {
+		var manufacturer = $("#manufacturer").val();
+		var isHuawei = manufacturer === 'huawei';
+		var isZte = manufacturer === 'zte';
+
+		if (isHuawei) {
+			$("#snmp_ro_community").attr('title', "Between 12 and 25 characters (at least 1 lowercase letter, 1 uppercase letter, 1 number and 1 special character)");
+			$("#snmp_rw_community").attr('title', "Between 12 and 25 characters (at least 1 lowercase letter, 1 uppercase letter, 1 number and 1 special character)");
+			// For Huawei, hide the version field and send R018
+			$("#olt_version_group").hide();
+			$("#olt_version_hidden_huawei").prop('disabled', false).prop('name', 'olt_version');
+			$("#olt_version_hidden_zte").prop('disabled', true).prop('name', 'olt_version_zte');
+		}
+		else if (isZte) {
+			$("#snmp_ro_community").attr('title', "Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)");
+			$("#snmp_rw_community").attr('title', "Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)");
+			// For ZTE, hide the version field and send the highest version from the list
+			$("#olt_version_group").hide();
+
+			// Get the highest version for the current generation
+			var generation = $('#olt_hardware_version option:selected').data('generation');
+			var highestVersion = getHighestVersionForGeneration(generation);
+
+			$("#olt_version_hidden_zte").val(highestVersion).prop('disabled', false).prop('name', 'olt_version');
+			$("#olt_version_hidden_huawei").prop('disabled', true).prop('name', 'olt_version_huawei');
+		}
+		else {
+			$("#snmp_ro_community").attr('title', "Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)");
+			$("#snmp_rw_community").attr('title', "Between 6 and 25 characters (at least 1 letter, 1 number and 1 special character)");
+			// For other manufacturers, show the version dropdown
+			$("#olt_version_group").show();
+			$("#olt_version_hidden_huawei").prop('disabled', true).prop('name', 'olt_version_huawei');
+			$("#olt_version_hidden_zte").prop('disabled', true).prop('name', 'olt_version_zte');
+		}
+	}
+
+	function getHighestVersionForGeneration(generation) {
+		// Filter versions for this generation and get the last one (highest)
+		var versions = olt_software_versions.filter(function(sw) {
+			return sw.generation == generation;
+		});
+
+		if (versions.length > 0) {
+			// Return the last version (they should be ordered, but we'll take the last one)
+			return versions[versions.length - 1].name;
+		}
+
+		// Fallback to "2" if no versions found
+		return "2";
+	}
+
+	// Initialize on page load
+	toggleHuaweiRequirements();
+
+	function fillSwVersions(generation) {
+		var $el = $('#olt_version');
+
+		$el.hide();
+		
+		$el.empty();
+
+		olt_software_versions.forEach( function (sw) {
+			if (sw.generation == generation) {
+				$el.append($("<option></option>").attr("value", sw.name).text(sw.display_name).prop("selected", (sw.name == "0") ));
+			}
+		});
+
+		$el.show();
+	}
+
+	fillSwVersions( $('#olt_hardware_version option:selected').data('generation') );
+
+	function is_form_data_valid() {
+
+		var fields = ['name', 'olt_ip', 'telnet_port', 'olt_user', 'olt_password', 'snmp_ro_community', 'snmp_rw_community', 'snmp_port'];
+		var isHuawei = $("#manufacturer").val() === 'huawei';
+
+		for (var i=0; i < fields.length; i++) {
+			var field = $("#" + fields[i]);
+			var patternStr = field.prop('pattern');
+			var errorMsg = field.data("invalidmsg");
+
+			// Use Huawei-specific pattern if manufacturer is Huawei and field has huawei-pattern
+			if (isHuawei && field.data("huawei-pattern")) {
+				patternStr = field.data("huawei-pattern");
+				errorMsg = field.data("huawei-msg");
+			}
+
+			var pattern = new RegExp(patternStr);
+
+			if (!pattern.test(field.val())) {
+
+				$.MessageBox( errorMsg ).done(function(data, button) {
+					field.focus();
+				});
+
+				return false;
+			}
+		}
+
+		return true;
+	}
+	
+	$("#add_settings").submit(function(event) {
+
+		if (!is_form_data_valid()) {
+			event.preventDefault();
+			return false;
+		}
+
+		showOverlayAndDisableButton($(".olt-submit"));
+    });
+
+	
+	function setPorts(ip_value) {
+		var privateIPv4Pattern = /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.(6[4-9]|[78]\d|9[0-9]|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|136\.1\.1\.\d{1,3}$/;
+		
+		if (privateIPv4Pattern.test(ip_value)) {
+			$('#telnet_port').val(23);
+			$('#snmp_port').val(161);
+		}
+	}
+	
+	$('#olt_ip').change(function(event) {
+		setPorts($(this).val());
+	});
+
+	$('#olt_ip').on('paste', function(event) {
+		var pastedData = event.originalEvent.clipboardData.getData('text');
+		
+		setPorts(pastedData);
+	});
+	
+});
+
+</script>
+
+
+</div>
+<br />
+<!-- /#page-wrapper -->
+    
+<div id="saveConfigModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="saveConfigModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+		  <div class="modal-header">
+		    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+		    <h3 id="saveConfigModalLabel">Save configuration</h3>
+		  </div>
+		  <div class="modal-body">
+		    <p>This will save the current OLT(s) configuration as startup configuration. It may take up to 3 minutes for the OLT(s) to finish saving the config. Are you sure?</p>
+		  </div>
+		  <div class="modal-footer">
+		    <button class="btn btn-link" data-dismiss="modal" aria-hidden="true">No, cancel</button>
+		    <button class="btn btn-primary save-configuration-button">Yes, save configuration</button>
+		  </div>
+		</div>
+	</div>
+</div>
+
+<div id="importModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="importModalLabel" aria-hidden="true">
+</div>
+
+<div id="rebuildModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="rebuildModalLabel" aria-hidden="true">
+</div>
+
+<div id="deleteAllApiReconciliationModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="deleteAllApiReconciliationModalLabel" aria-hidden="true">
+</div>
+
+<div id="generateSnmpIdsModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="generateSnmpIdsModalLabel" aria-hidden="true">
+</div>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/vendor/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/vendor/bootstrap/js/bootstrap-multiselect.js?v=3.52.0"></script>
+
+    <!-- Metis Menu Plugin JavaScript -->
+    <script src="/vendor/metisMenu/metisMenu.min.js"></script>
+
+    <!-- Custom Theme JavaScript -->
+    <script src="/vendor/sb-admin-2/js/sb-admin-2.js"></script>
+        
+    <!-- Loading overlay -->
+    <script src="/vendor/jquery-loading-overlay-1.5.3/src/loadingoverlay.custom.js?v=2"></script>
+    
+    <!-- Message box -->
+    <script src="/vendor/jquery-message-box-2.2.1/src/messagebox.min.js"></script>
+    
+    
+
+<script type="text/javascript">
+
+$( document ).ready(function() {
+	
+	// Hide new version dot if user has already seen this version
+	var currentVersion = '3.52.0';
+	var lastSeenVersion = localStorage.getItem('lastSeenVersion');
+	if (lastSeenVersion === currentVersion) {
+		$('.new-version-dot').hide();
+	}
+
+		if (lastSeenVersion !== currentVersion) {
+		var $h2 = $('h2').first();
+		if ($h2.length) {
+			$('#smartolt-update-banner').insertAfter($h2);
+		}
+		$('#smartolt-update-banner').show();
+	}
+	
+	$('#smartolt-update-banner-changelog').on('click', function(e) {
+		e.preventDefault();
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+		window.location.href = '/changelog';
+	});
+
+	$('#smartolt-update-banner-dismiss').on('click', function() {
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+		$('#smartolt-update-banner').slideUp(300);
+	});
+
+	$('#footer-changelog-link').on('click', function() {
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+	});
+
+	//hide alert-success after 5 seconds
+	/*setTimeout(function(){
+		$('.alert-success').not('.nofade').fadeOut();
+	},5000);*/
+	
+	var waitingForOLT   = $("<div>", {
+	    id      : "waitingOLT",
+	    css     : {
+	        "font-size" : "50px",
+			"white-space" : "nowrap"
+	    },
+	    text    : "Waiting for OLT"
+	});
+
+	var loadingOverlaySettings = {
+		    image       : "",
+		    fontawesome : "fa fa-spinner fa-spin",
+		    custom  : waitingForOLT,
+		    resizeInterval : 0
+		};
+
+	$.LoadingOverlay("append", loadingOverlaySettings);
+
+	window.showLoadingOverlay = function(loadingText = null) {
+		if(loadingText != null) {
+			$("#waitingOLT").text(loadingText);
+		}
+		else {
+			$("#waitingOLT").text("Waiting for OLT");
+		}
+		
+		$.LoadingOverlay("show", loadingOverlaySettings);
+	}
+
+	window.hideLoadingOverlay = function() {
+		$.LoadingOverlay("hide");
+	}
+
+	window.isLoadingOverlayVisible = function() {
+		return $('.loadingoverlay').is(":visible");
+	}
+	
+	//hide loading overlay when ajax request finishes
+	/*$(document).ajaxStop(function(){
+		hideLoadingOverlay();
+	});*/
+
+	//show toast with error
+	$(document).ajaxError(function(requestObject, error, errorThrown) {
+		if(error.status != 404 && error != undefined && error.responseJSON != undefined && 
+				error.responseJSON.error != undefined && error.responseJSON.error.length > 0) {
+			toast(error.responseJSON.error);
+		}
+	});
+
+	//confirm message box
+	window.MessageBoxConfirm = function(message){
+	    return $.MessageBox({
+	        buttonDone  : "OK",
+	        buttonFail  : "Cancel",
+	        message     : message
+	    });
+	}
+
+	window.getSelectedText = function() {
+        if (window.getSelection) {
+            return window.getSelection().toString();
+        } 
+        else if (document.selection) {
+            return document.selection.createRange().text;
+        }
+        return '';
+    }
+
+	//close navbar menu when clicking outside of it
+	$(document).click(function (event) {
+		var clickover = $(event.target);
+		var $nav = $("div.navbar-collapse");
+        var _opened = $nav.hasClass("in");
+
+        if (_opened === true && !clickover.hasClass("navbar-toggle")) {
+			$nav.collapse('hide');
+        }
+    });
+
+	/*https://www.quirksmode.org/blog/archives/2014/02/mouse_event_bub.html
+	  Safari on iOS only allows the mouse events, including click, to bubble up in the following situations:
+	  1. The target element of the event is a link or a form field.
+	  2. The target element, or any of its ancestors up to but not including the <body>, has an explicit event handler set for any of the mouse events. This event handler may be an empty function.
+      3. The target element, or any of its ancestors up to and including the document has a cursor: pointer CSS declarations. */
+	$("#content-wrapper").click(function (event) {
+		//this is here only for iOS to allow mouse events to bubble up so we can close navbar menu when clicking outside of it
+    });
+
+	// check navbar menu top offset
+    function closeMenuIfOpened() {
+		var $nav = $("div.navbar-collapse");
+    	var _opened = $nav.hasClass("in");
+
+        if (_opened === true && $(".navbar").offset().top > 50) {
+			$nav.collapse('hide');
+        }
+    }
+
+    //for touch devices, detect zoom in/out events and close the navbar menu if opened
+    var tracks = [];
+    $(window).on("touchmove", function (event) {
+	
+	    //only run code if the user has two fingers touching
+	    if (event.originalEvent.touches.length === 2) {
+	
+	        //track the touches, I'm setting each touch as an array inside the tracks array
+	        //each touch array contains an X and Y coordinate
+	        tracks.push([ [event.originalEvent.touches[0].pageX, event.originalEvent.touches[0].pageY], [event.originalEvent.touches[1].pageX, event.originalEvent.touches[1].pageY] ]);
+	    }
+	}).on("touchstart", function () {
+	    //start-over
+	    tracks = [];
+	}).on("touchend", function () {
+	    if(tracks.length > 0) {
+			var $nav = $("div.navbar-collapse");
+	    	var _opened = $nav.hasClass("in");
+	        if (_opened === true) {
+				$nav.collapse('hide');
+	        }
+	    }
+	});
+
+	// COPY TO CLIPBOARD
+	// Attempts to use .execCommand('copy') on a created text field
+	// Falls back to a selectable alert if not supported
+	// Attempts to display status in Bootstrap tooltip
+	// ------------------------------------------------------------------------------
+
+	function copyToClipboard(text, el) {
+	  var copyTest = document.queryCommandSupported('copy');
+	  var elOriginalText = el.attr('data-original-title');
+
+	  if (copyTest === true) {
+	    var copyTextArea = document.createElement("textarea");
+	    copyTextArea.value = text;
+	    document.body.appendChild(copyTextArea);
+	    copyTextArea.select();
+	    try {
+	      var successful = document.execCommand('copy');
+	      var msg = successful ? "Copied!" : "Whoops, not copied!";
+	      el.attr('data-original-title', msg).tooltip('show');
+	    } 
+	    catch (err) {
+	      console.log("Oops, unable to copy");
+	    }
+	    document.body.removeChild(copyTextArea);
+	    el.attr('data-original-title', elOriginalText);
+	  } 
+	  else {
+	    // Fallback if browser doesn't support .execCommand('copy')
+	    window.prompt("Copy to clipboard", text);
+	  }
+	}
+
+	function copyToClipboard2(text, el) {
+		  if (document.queryCommandSupported('copy') === true) {
+			var elOriginalText = el.attr('data-original-title');
+	 	    var copyTextArea = document.createElement("textarea");
+		    copyTextArea.textContent = text.text();
+		    document.body.appendChild(copyTextArea);
+
+		    var selection = document.getSelection();
+		    var range = document.createRange();
+		    range.selectNode(copyTextArea);
+		    selection.removeAllRanges();
+		    selection.addRange(range);
+		    
+		    try {
+		      var successful = document.execCommand('copy');
+			  var msg;
+
+			  if (successful) {
+				  msg = "Copied!";
+			  } 
+			  else {
+				msg = "Whoops, not copied!";
+				el.removeClass('not-selectable');
+			  }
+		      el.attr('data-original-title', msg).tooltip('show');
+		    } 
+		    catch (err) {
+		      console.log("Oops, unable to copy");
+		    }
+		    selection.removeAllRanges();
+		    document.body.removeChild(copyTextArea);
+		    el.attr('data-original-title', elOriginalText);
+		  } 
+		  else {
+			$('.not-selectable').removeClass('not-selectable');
+		    // Fallback if browser doesn't support .execCommand('copy')
+		    window.prompt("Copy to clipboard", text.text());
+		  }
+		}
+
+	// Initialize
+   // ---------------------------------------------------------------------
+
+   // Tooltips
+   // Requires Bootstrap 3 for functionality
+   $('.js-tooltip').tooltip();
+
+   // Copy to clipboard
+   // Grab any text in the attribute 'data-copy' and pass it to the 
+   // copy function
+   $('.js-copy').click(function() {
+     var text = $(this).attr('data-copy');
+     var el = $(this);
+     copyToClipboard(text, el);
+   });
+
+   $(document).on('click','.comma-copy', function() {
+	   $(this).removeClass('btn-primary').addClass('btn-default');
+	     var el = $('#'+$(this).attr('data-idtag'));
+	     copyToClipboard2(el, $(this));
+	     el.removeClass('text-primary').addClass('text-muted');
+	   });
+
+   //trim white spaces when paste in any input
+   $(document).on('paste', 'input[type=text]', function(e) {
+	  // prevent copying action
+	  e.preventDefault();
+	  
+	  var pastedText = e.originalEvent.clipboardData.getData('Text');
+	  var withoutSpaces = pastedText;
+	  if(pastedText) {
+		  withoutSpaces = pastedText.trim();
+	  }
+
+	  //remove all spaces, including from inside the text
+	  if($(this).hasClass('no_spaces')) {
+		  withoutSpaces = withoutSpaces.replace(/\s/g, '');
+	  }
+	  
+	  $(this).insertAtCaret(withoutSpaces);
+	});
+
+   $.fn.insertAtCaret = function(text) {
+	    return this.each(function() {
+	        if (document.selection && this.tagName == 'TEXTAREA') {
+	            //IE textarea support
+	            this.focus();
+	            sel = document.selection.createRange();
+	            sel.text = text;
+	            this.focus();
+	        } else if (this.selectionStart || this.selectionStart == '0') {
+	            //MOZILLA/NETSCAPE support
+	            startPos = this.selectionStart;
+	            endPos = this.selectionEnd;
+	            scrollTop = this.scrollTop;
+	            this.value = this.value.substring(0, startPos) + text + this.value.substring(endPos, this.value.length);
+	            this.focus();
+	            this.selectionStart = startPos + text.length;
+	            this.selectionEnd = startPos + text.length;
+	            this.scrollTop = scrollTop;
+	        } else {
+	            // IE input[type=text] and other browsers
+	            this.value += text;
+	            this.focus();
+	            this.value = this.value;    // forces cursor to end
+	        }
+	    });
+	};
+    
+	
+  $('.save-configuration-button').click(function (){
+    var button = $('.save-configuration-anchor');
+
+    button.toggleClass('active');
+    button.attr('disabled', true);
+    button.text("Saving...");
+    $('#saveConfigModal').modal('hide');
+
+    $.ajax({
+        method: "GET",
+        beforeSend: function(request) {
+		    request.setRequestHeader("X-Token", config.X_TOKEN);
+		  },
+        url: "/api/system/write",
+      })
+      .done(function( response ) {
+        button.text("Save complete!");
+        setTimeout(function () {
+          button.toggleClass('active');
+          button.attr('disabled', false);
+          button.text("Save config");
+        }, 1000);
+      })
+      .fail(function(jqXHR, textStatus) {
+    	  if(jqXHR.responseJSON) {
+				$.MessageBox(jqXHR.responseJSON.error);
+			}
+			else {
+				$.MessageBox(jqXHR.responseText);
+			}
+	        setTimeout(function () {
+	        	 button.toggleClass('active');
+	             button.attr('disabled', false);
+	             button.text("Save config");
+	        }, 1000);
+      });
+  });
+
+    
+});
+</script>
+
+</div>
+
+<style>
+.new-version-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	background-color: #5cb85c;
+	border-radius: 50%;
+	margin-left: 4px;
+	animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+	0% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(92, 184, 92, 0.7);
+	}
+	70% {
+		transform: scale(1);
+		box-shadow: 0 0 0 6px rgba(92, 184, 92, 0);
+	}
+	100% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(92, 184, 92, 0);
+	}
+}
+
+</style>
+
+<footer>
+	<div class="text-center row">SmartOLT <a href="/changelog" class="btn-link" id="footer-changelog-link">v3.52.0<span class="new-version-dot" title="New updates"></span></a> &copy; 2026</div>
+</footer>
+
+</body>
+
+</html>

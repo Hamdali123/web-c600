@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta http-equiv="content-type" content="text/html; utf-8">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Language" content="en">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="https://sanwanay.smartolt.com/favicon.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="https://sanwanay.smartolt.com/favicon.ico" type="image/x-icon" />
+        <meta http-equiv="refresh" content="300"> <!-- refresh page every 5 mins if auto_refresh from config is on -->
+  
+  <title>Dashboard - SANWANAY NETWORK</title>
+
+  <!-- Bootstrap Core CSS -->
+  <link href="/vendor/bootstrap/css/bootstrap-custom.css?v=3.52.0.24" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/bootstrap-multiselect.css?v=3.52.0.20" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/styles.css?v=3.52.0.24" rel="stylesheet">
+  <link href="/vendor/bootstrap/css/toast.css?v=3.52.0.20" rel="stylesheet">
+
+  
+  <!-- Custom Fonts -->
+  <link href="/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+  <!-- Message box CSS -->
+  <link href="/vendor/jquery-message-box-2.2.1/src/messagebox.css" rel="stylesheet" type="text/css">
+
+      <!-- we are on the dashboard -->
+    <!-- Custom CSS -->
+    <link href="/vendor/dashboard/css/startmin.css" rel="stylesheet">
+  
+  <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+  <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+  <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+  <!-- jQuery -->
+  <script src="/vendor/jquery/jquery.min.js"></script>
+
+  <!-- Toast alerts -->
+  <script src="/vendor/bootstrap/js/toast.js"></script>
+
+  <!-- Pauses recurring AJAX polling while the tab is hidden OR the user has been idle, resumes on focus / activity. -->
+  <script src="/vendor/smartolt/scripts/polling.js?v=3.52.0.2"></script>
+
+  
+</head>
+
+<body>
+<script type="text/javascript">
+$( document ).ready(function() {
+	$.ajaxSetup({
+		cache: false
+	});
+	
+	window.jqxhrs = [];
+
+      window.registerJqxhr = function(jqxhr) {
+        jqxhrs.push(jqxhr);
+      }
+
+      window.abortJqxhr = function() {
+        for (var i = jqxhrs.length - 1; i >= 0; i--) {
+          if (jqxhrs[i]) {
+            jqxhrs[i].abort();
+          }
+        }
+
+        window.jqxhrs = [];
+      }
+
+      $(window).bind("beforeunload", function(event) {
+        abortJqxhr();
+      });
+
+      function unregisterJqxhr(event, jqxhr, settings) {
+        var idx = $.inArray(jqxhr, jqxhrs);
+        if (idx != -1) {
+          jqxhrs.splice(idx, 1);
+        }
+      }
+
+      $(document).ajaxComplete(unregisterJqxhr);
+
+      config = {
+        X_TOKEN: '9C23F19BE06B4BEB93046ECFDF50FF91'
+      }
+    });
+  </script>
+
+  <div id="content-wrapper">
+    <div class="navbar navbar-default navbar-fixed-top default-menu">
+      <div class="container">
+        <div class="navbar-header">
+          <button class="navbar-toggle collapsed" type="button" data-toggle="collapse" data-target="#navbar-main" aria-expanded="false" aria-controls="navbar">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand text-ellipsis max-width-250" href="/" title="SANWANAY NETWORK">SANWANAY NETWORK</a>
+        </div>
+
+        <div class="navbar-collapse collapse" id="navbar-main">
+          <ul class="nav navbar-nav">
+
+                        
+              <li><a href="/onu/unconfigured">Unconfigured</a></li>
+            
+                          <li><a href="/onu/configured">Configured</a></li>
+            
+            
+                        	                <li><a href="https://sanwanay.smartolt.com/graphs">Graphs</a></li>
+                                                <li><a href="https://sanwanay.smartolt.com/diagnostics">Diagnostics</a></li>
+                
+                                <li><a href="https://sanwanay.smartolt.com/reports/tasks">Tasks</a></li>
+                                
+                                 <li class="dropdown">
+                  <a class="dropdown-toggle" data-toggle="dropdown" href="#" id="settings">Reports <span class="caret"></span></a>
+                  <ul class="dropdown-menu" aria-labelledby="settings">
+                  	                    <li><a href="https://sanwanay.smartolt.com/reports/authorizations/list">Authorizations</a></li>
+                                                            <li><a href="https://sanwanay.smartolt.com/reports/export">Export</a></li>
+                                                            <li><a href="https://sanwanay.smartolt.com/reports/import">Import</a></li>
+                                                          </ul>
+                </li>
+                
+                                    <li><a href="#saveConfigModal" class="save-configuration-anchor" data-toggle="modal">Save config</a></li>
+                                
+              <li class="dropdown">
+                <a class="dropdown-toggle" data-toggle="dropdown" href="#" id="settings">Settings <span class="caret"></span></a>
+                <ul class="dropdown-menu" aria-labelledby="settings">
+
+                                        <li><a href="/locations/listing">Zones</a></li>
+                    
+                                        <li><a href="/odbs/listing">ODBs</a></li>
+                    
+                                        <li><a href="/onu_types/listing">ONU types</a></li>
+                    
+                                        <li><a href="/speed_profiles">Speed profiles</a></li>
+                    
+                                        <li><a href="/olt">OLTs</a></li>
+                    
+                                        <li><a href="/system_config">VPN & TR069</a></li>
+                    
+                                        <li><a href="/onu_authorization_presets/listing">Authorization presets</a></li>
+                    
+                    
+                                        <li><a href="/general">General</a></li>
+                    
+                                        <li><a href="/general/listing/billing">Billing</a></li>
+                                    </ul>
+              </li>
+
+              
+            
+          </ul>
+
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="/auth" title="Edit user mohamadsanwani9@gmail.com"><i class="fa fa-user glyphicon-white font-size-20"> </i></a></li>
+            <li><a href="/auth/logout"><i class="glyphicon glyphicon-off glyphicon glyphicon-white"> </i> Log out</a></li>
+          </ul>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="container">
+
+<div class="container-fluid content-wrap">
+	<div id="smartolt-update-banner" class="alert alert-success alert-dismissible" role="alert" style="display:none;">
+		<button type="button" class="close" id="smartolt-update-banner-dismiss" aria-label="Dismiss"><span aria-hidden="true">&times;</span></button>
+		<i class="fa fa-gift"></i>
+		<strong>SmartOLT has been updated to version 3.52.0</strong>
+		&mdash;
+		<a href="#" id="smartolt-update-banner-changelog" class="alert-link">Click here to see what's new</a>
+	</div>
+	<h2>Dashboard</h2>
+			<div class="alert alert-success">Logged In Successfully</div>
+		
+				<!-- /.row -->
+				<div class="row">
+                    <div class="col-lg-3 col-md-6">
+	                	<div class="panel panel-primary">
+	                        <a href="/onu/unconfigured?olt_id=2">
+	                            <div class="panel-heading">
+	                                <div class="row">
+	                                    <div class="col-xs-3">
+	                                        <i class="fa fa-magic fa-4x"></i>
+	                                    </div>
+	                                    <div class="col-xs-9 text-right">
+	                                        <div class="huge waiting-auth"><i class="fa fa-spinner fa-spin"></i></div>
+	                                        <div>Waiting authorization</div>
+	                                    </div>
+	                                </div>
+	                            </div>
+                                <div class="panel-footer">
+                                    <span class="pull-left disabled-waiting-auth" title="Administratively Disabled ONTs">D: <i class="fa fa-spinner fa-spin"></i></span>
+                                    <span class="pull-left margin-left move-waiting-auth" title="ONTs to be resynced or moved">Resync: <i class="fa fa-spinner fa-spin"></i></span>
+                                    <span class="pull-right auth-waiting-auth" title="ONTs to be authorized">New: <i class="fa fa-spinner fa-spin"></i></span>
+
+                                    <div class="clearfix"></div>
+                                </div>
+                            </a>
+	                	</div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="panel panel-green">
+	                        <a href="/onu/configured?olt_id=2">
+	                            <div class="panel-heading">
+	                                <div class="row">
+	                                    <div class="col-xs-3">
+	                                        <i class="fa fa-tasks fa-4x"></i>
+	                                    </div>
+	                                    <div class="col-xs-9 text-right">
+	                                        <div class="huge online"><i class="fa fa-spinner fa-spin"></i></div>
+	                                        <div>Online</div>
+	                                    </div>
+	                                </div>
+	                            </div>
+	                            <div class="panel-footer">
+	                            	<span class="pull-left total-auth">Total authorized: <i class="fa fa-spinner fa-spin"></i></span>
+	                                <span class="pull-right"></span>
+
+	                                <div class="clearfix"></div>
+	                            </div>
+	                        </a>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6">
+                        <div class="panel panel-red">
+								<a href="/onu/configured?status=pwrfail,los,offline&olt_id=2">
+									<div class="panel-heading">
+										<div class="row">
+											<div class="col-xs-3">
+												<i class="fa fa-close fa-4x"></i>
+											</div>
+											<div class="col-xs-9 text-right">
+												<div class="huge total-offline"><i class="fa fa-spinner fa-spin"></i></div>
+												<div>Total offline</div>
+											</div>
+										</div>
+									</div>
+								</a>
+                                <div class="panel-footer">
+									<a href="/onu/configured?status=pwrfail&olt_id=2">
+                                    	<span class="pull-left power-fail" title="ONTs with offline reason: Electricity lost">PwrFail: <i class="fa fa-spinner fa-spin"></i></span>
+									</a>
+									<a href="/onu/configured?status=los&olt_id=2">
+                                    	<span class="pull-left margin-left los" title="ONTs with offline reason: Loss of Signal">LoS: <i class="fa fa-spinner fa-spin"></i></span>
+									</a>
+									<a href="/onu/configured?status=offline&olt_id=2">
+                                    	<span class="pull-right offline" title="ONTs that have never been online since the OLT was restarted">N/A: <i class="fa fa-spinner fa-spin"></i></span>
+									</a>
+                                    <div class="clearfix"></div>
+                                </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3 col-md-6"  id="graphs">
+                        <div class="panel panel-yellow">
+								<a href="/diagnostics?signal=critical,warning&olt_id=2">
+									<div class="panel-heading">
+										<div class="row">
+											<div class="col-xs-3">
+												<i class="fa fa-exclamation-circle fa-4x"></i>
+											</div>
+											<div class="col-xs-9 text-right">
+												<div class="huge total-signal-low"><i class="fa fa-spinner fa-spin"></i></div>
+												<div>Low signals</div>
+											</div>
+										</div>
+									</div>
+								</a>
+                                <div class="panel-footer">
+									<a href="/diagnostics?signal=warning&olt_id=2">
+                                    	<span class="pull-left signal-warning" title="ONTs with signal level lower than the warning threshold">Warning: <i class="fa fa-spinner fa-spin"></i></span>
+									</a>
+									<a href="/diagnostics?signal=critical&olt_id=2">
+                                    	<span class="pull-right signal-critical" title="ONTs with signal level lower than the critical threshold">Critical: <i class="fa fa-spinner fa-spin"></i></span>
+									</a>
+                                    <div class="clearfix"></div>
+                                </div>
+                        </div>
+                        <p class="text-right updated-date"><i class="fa fa-spinner fa-spin"></i></p>
+                    </div>
+                </div>
+                <!-- /.row -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <i class="fa fa-bar-chart-o fa-fw"></i> Network status                                <div class="pull-right panel-heading-button">
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-default btn-xs dropdown-toggle panel-heading-dropdown-toggle"
+                                                data-toggle="dropdown">
+                                            More graphs                                            <span class="caret"></span>
+                                        </button>
+                                        <ul class="dropdown-menu pull-right" role="menu">
+											<li><a href="#graphs" class='network_status_graph' data-period='hourly'>Hourly graph</a>
+                                            </li>
+                                            <li><a href="#graphs" class='network_status_graph' data-period='daily'>Daily graph</a>
+                                            </li>
+                                            <li><a href="#graphs" class='network_status_graph' data-period='weekly'>Weekly graph</a>
+                                            </li>
+                                            <li><a href="#graphs" class='network_status_graph' data-period='monthly'>Monthly graph</a>
+                                            </li>
+                                            <li><a href="#graphs" class='network_status_graph' data-period='yearly'>Yearly graph</a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- /.panel-heading -->
+                            <div class="panel-body text-center" id="onusStatusesGraph">
+                                                            <img class="img-responsive img-rounded" src="/graphs_olt/get_daily_onus_statuses/dashboard/2" alt="daily statuses not yet generated" />
+                                                            </div>
+                            <!-- /.panel-body -->
+                        </div>
+                        <!-- /.panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <i class="fa fa-bar-chart-o fa-fw"></i> ONU authorizations per day                            </div>
+                            <!-- /.panel-heading -->
+                            <div class="panel-body">
+                                <div class="row">
+                                    <div class="col-lg-12">
+                                        <canvas id="bar-chart-canvas"></canvas>
+                                    </div>
+                                    <!-- /.col-lg-8 (nested) -->
+                                </div>
+                                <!-- /.row -->
+                            </div>
+                            <!-- /.panel-body -->
+                        </div>
+
+						<!-- /.panel -->
+
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+								<i class="fa fa-heartbeat" aria-hidden="true"></i> PON outage                            </div>
+                            <!-- /.panel-heading -->
+							<div class="table-responsive" id="outage_pons_content">
+								<div class="dashboard-img">
+                                </div>
+							</div>
+                            <!-- /.panel-body -->
+                        </div>
+                        <!-- /.panel -->
+                    </div>
+                    <!-- /.col-lg-8 -->
+                    <div class="col-lg-4">
+                    	<div class="panel panel-default panel-olt">
+                            <div class="panel-heading">
+                                OLT ZTE-C600                                <div class="pull-right panel-heading-button">
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-default btn-xs dropdown-toggle panel-heading-dropdown-toggle"
+                                                data-toggle="dropdown">
+                                            <span id="selected_olt">2 - C600-SANWANI</span>
+                                            <span class="caret"></span>
+                                        </button>
+                                        <ul class="dropdown-menu pull-right" role="menu" id="dropdownOlts">
+											
+                                        	<li>
+												<a href="/" class="olt_option min-width-250">All</a>
+											</li>
+                                        		                                            <li>
+													<a href="https://sanwanay.smartolt.com/?olt_id=2" class="olt_option">
+														<span>2 - C600-SANWANI</span>
+														<span class="badge badge-light pull-right">203</span>
+													</a>
+	                                            </li>
+                                                                                    </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- /.panel-heading -->
+                            <div class="panel-body text-center ">
+                                                            <img class="dashboard-img" src="/content/img/ZTE-C600.png">
+                                <div class="list-group text-left margin-top-xlg">
+                                	<span class="list-group-item">
+											<i class="fa fa-cogs fa-fw"></i> Uptime                                			<span class="pull-right">
+												<em id="olt-up-time-2" class="small"><i class="fa fa-spinner fa-spin"></i></em>
+												<em id="olt-env-temp-2" class="small"></em>
+											</span>
+	                                </span>
+                                </div>
+                                <!-- /.list-group -->
+                                                        </div>
+                            <!-- /.panel-body -->
+                        </div>
+                        <!-- /.panel -->
+                                                <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <i class="fa fa-info-circle fa-fw"></i> Info                            </div>
+                            <!-- /.panel-heading -->
+                            <div class="panel-body">
+                                <div class="list-group">
+                                	                                		<a href="/info" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i>  Auto config backup saved for OLT 2	                                            <span class="pull-right small"><em>16 hours ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/177" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/13:53 Reboot	                                            <span class="pull-right small"><em>22 hours ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/309" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/13:72 ONU ZTEGCA972753 gpon_onu-1/2/13:72 authorized	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/info" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i>  ONU ZTEGCA972753 gpon_onu-1/2/3:29 deleted	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/308" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/13:20 Name changed to akbarkemiripabuaran	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/308" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/13:20 ONU CIOT040BED50 gpon_onu-1/2/13:20 authorized	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/307" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/3:30 Changed WAN PPPoE authentication data	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/307" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/3:30 Changed WAN mode to PPPoE	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/307" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/3:30 WAN allow remote access from everywhere enabled	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    		<a href="/onu/view/307" class="list-group-item">
+		                                    	<i class="fa fa-user-o fa-fw"></i> gpon_onu-1/2/3:30 ONU ZTEGCC21DA94 gpon_onu-1/2/3:30 authorized	                                            <span class="pull-right small"><em>1 day ago</em>
+	                                            </span>
+	                                     </a>
+                                                                    </div>
+                                <!-- /.list-group -->
+                                <a href="/info?olt_id=2" class="btn btn-default btn-block">View All Info</a>
+                            </div>
+                            <!-- /.panel-body -->
+                        </div>
+                                                <!-- /.panel -->
+                    </div>
+                    <!-- /.col-lg-4 -->
+                </div>
+                <!-- /.row -->
+</div>
+
+
+<script type="text/javascript">
+var lang_resync = 'Resync';
+var lang_new = 'New';
+var lang_d_colon = 'D:';
+var lang_new_colon = 'New:';
+var lang_total_authorized_colon = 'Total authorized:';
+var lang_warning_colon = 'Warning:';
+var lang_critical_colon = 'Critical:';
+var lang_statuses_not_yet_generated = 'statuses not yet generated';
+var lang_n_a = 'N/A';
+
+$(document).ready(function()  {
+
+	$('a.network_status_graph').click(function (event){
+		var period = $(this).data('period');
+		var h=$("#onusStatusesGraph").css("height");
+        $("#onusStatusesGraph").css("height", h);
+
+		$("#onusStatusesGraph").html('<img class="img-responsive center-block img-rounded" src="graphs_olt/get_' + period + '_onus_statuses/dashboard/2" alt="' + period + ' ' + lang_statuses_not_yet_generated + '">');
+
+		// we wait a reasonable time before setting height to auto, in order to have the image loaded
+	    setTimeout(function () {
+               $("#onusStatusesGraph").css("height", 'auto')
+       	}, 400);
+	});
+
+	// Track toggle state for danger and warning filters
+	var dangerFilterActive = false;
+	var warningFilterActive = false;
+
+	$('#show_all_olts').click(function (event) {
+		$('.panel-body-olts a.list-group-item').show();
+		dangerFilterActive = false;
+		warningFilterActive = false;
+	});
+
+	$('#show_danger_olts').click(function (event) {
+		if (dangerFilterActive) {
+			// Toggle off - show all OLTs
+			$('.panel-body-olts a.list-group-item').show();
+			dangerFilterActive = false;
+		} else {
+			// Toggle on - show only danger OLTs
+			$('.panel-body-olts a.list-group-item').show();
+			$('.panel-body-olts a.list-group-item:not(:has(.text-danger))').hide();
+			dangerFilterActive = true;
+			warningFilterActive = false;
+		}
+	});
+
+	$('#show_warning_olts').click(function (event) {
+		if (warningFilterActive) {
+			// Toggle off - show all OLTs
+			$('.panel-body-olts a.list-group-item').show();
+			warningFilterActive = false;
+		} else {
+			// Toggle on - show only warning OLTs
+			$('.panel-body-olts a.list-group-item').show();
+			$('.panel-body-olts a.list-group-item:not(:has(.text-warning))').hide();
+			warningFilterActive = true;
+			dangerFilterActive = false;
+		}
+	});
+
+	$("#searchOlts").keyup(function(event) {
+		var filter, a, i;
+
+		filter = event.target.value.toUpperCase();
+		a = $("#dropdownOlts li a");
+		for (i = 0; i < a.length; i++) {
+			var txtValue = a[i].textContent || a[i].innerText;
+		    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+		    	a[i].style.display = "";
+		    } else {
+		    	a[i].style.display = "none";
+		    }
+		}
+	});
+
+	var isFetchOnuStatsDone = false;
+	var isFetchOnuSignalsDone = false;
+
+	var oltUptimeBatchQueue = [];
+	var oltUptimeBatchActive = 0;
+	var oltNames = {2: "C600-SANWANI"};
+
+	function processOltUptimeBatchQueue() {
+		if (oltUptimeBatchActive > 0 || oltUptimeBatchQueue.length === 0) { return; }
+		var batch = oltUptimeBatchQueue.shift();
+		oltUptimeBatchActive++;
+		var batchAjaxCall = $.ajax({
+			type: 'POST',
+			url: '/olt/get_olt_uptime_batch',
+			dataType: 'json',
+			data: { olt_ids: JSON.stringify(batch) },
+			success: function(data) {
+				$.each(data, function(oltId, item) {
+					if (item['uptime']) {
+						$("#olt-up-time-" + oltId).html(item['uptime'] + ', ');
+						$("#olt-env-temp-" + oltId).html(item['env_temp']).addClass(item['color_class']);
+					} else {
+						$("#olt-up-time-" + oltId).html(lang_n_a).addClass('text-danger');
+						$('#show_danger_olts').show();
+						var toastKey = 'olt_unreachable_' + oltId;
+						var lastShown = localStorage.getItem(toastKey);
+						if (!lastShown || (Date.now() - parseInt(lastShown)) > 600000) {
+							var msg = item['snmp_error'] || ((oltNames[oltId] || ('OLT ' + oltId)) + ' — ' + lang_n_a);
+							toast(msg);
+							localStorage.setItem(toastKey, Date.now());
+						}
+					}
+									});
+			},
+			complete: function() {
+				oltUptimeBatchActive--;
+				processOltUptimeBatchQueue();
+			}
+		});
+		registerJqxhr(batchAjaxCall);
+	}
+
+	function tryFetchOltUptime() {
+		if(isFetchOnuStatsDone && isFetchOnuSignalsDone) {
+			var allIds = [2];
+			for (var i = 0; i < allIds.length; i += 6) {
+				oltUptimeBatchQueue.push(allIds.slice(i, i + 6));
+			}
+			processOltUptimeBatchQueue();
+		}
+	}
+
+	function fetchOltUptime () {
+		if(!isFetchOnuStatsDone|| !isFetchOnuSignalsDone) {
+    		isFetchOnuStatsDone = true;
+    		isFetchOnuSignalsDone = true;
+
+    		tryFetchOltUptime();
+		}
+	}
+
+	function getWaitingForAuth() {
+		var waitingForAuthAjaxCall = $.ajax({
+			type: 'GET',
+			url: '/dashboard/get_waiting_auth/2',
+			timeout: 120000,
+			dataType: "json",
+			success: function(data)
+			{
+				if (data["fetch_in_progress"]) {
+					setTimeout(getWaitingForAuth, 2000);
+					return;
+				}
+				$(".disabled-waiting-auth").html(lang_d_colon + " " + (data["disabled_waiting_auth"] != undefined ? data["disabled_waiting_auth"] : "-"));
+				$(".move-waiting-auth").html(lang_resync + ": " + (data["move_waiting_auth"] != undefined ? data["move_waiting_auth"] : "-"));
+				$(".auth-waiting-auth").html(lang_new_colon + " " + (data["auth_waiting_auth"] != undefined ? data["auth_waiting_auth"] : "-"));
+				$(".waiting-auth").html(data["waiting_auth"] != undefined ? data["waiting_auth"] : "-");
+			},
+			error: function(jqXHR, textStatus, errorThrown)
+			{
+				$(".disabled-waiting-auth").html(lang_d_colon + " -");
+				$(".move-waiting-auth").html(lang_resync + ": -");
+				$(".auth-waiting-auth").html(lang_new_colon + " -");
+				$(".waiting-auth").html("-");
+			}
+		});
+		registerJqxhr(waitingForAuthAjaxCall);
+	}
+
+		getWaitingForAuth();
+	
+	function getOnusStats() {
+		var getOnusStatsAjaxCall = $.ajax({
+			type: 'GET',
+			url: '/dashboard/get_onus_stats/2',
+			timeout: 30000,
+			dataType: "json",
+			success: function(data)
+			{
+				$(".online").html(data["online"] != undefined ? data["online"] : "-");
+				$(".total-auth").html(lang_total_authorized_colon + " " + (data["total_auth"] != undefined ? data["total_auth"] : "-"));
+				$(".total-offline").html(data["total_offline"] != undefined ? data["total_offline"] : "-");
+				$(".power-fail").html("PwrFail: " + (data["power_fail"] != undefined ? data["power_fail"] : "-"));
+				$(".los").html("LoS: " + (data["los"] != undefined ? data["los"] : "-"));
+				$(".offline").html("N/A: " + (data["offline"] != undefined ? data["offline"] : "-"));
+				$(".updated-date").html(data["updated_date"] != undefined ? data["updated_date"] : "-");
+
+				isFetchOnuStatsDone = true;
+				tryFetchOltUptime();
+			}
+		});
+		registerJqxhr(getOnusStatsAjaxCall);
+	}
+
+		getOnusStats();
+	
+	function getOnusSignals() {
+		var getOnusSignalsAjaxCall = $.ajax({
+			type: 'GET',
+			url: '/dashboard/get_onus_signals/2',
+			timeout: 30000,
+			dataType: "json",
+			success: function(data)
+			{
+				$(".total-signal-low").html(data["total_signal_low"] != undefined ? data["total_signal_low"] : "-");
+				$(".signal-warning").html(lang_warning_colon + " " + (data["signal_warning"] != undefined ? data["signal_warning"] : "-"));
+				$(".signal-critical").html(lang_critical_colon + " " + (data["signal_critical"] != undefined ? data["signal_critical"] : "-"));
+
+				isFetchOnuSignalsDone = true;
+				tryFetchOltUptime();
+			}
+		});
+		registerJqxhr(getOnusSignalsAjaxCall);
+	}
+
+		getOnusSignals();
+	
+	function getOnusAuthPerDay() {
+		var onusAuthPerDayAjaxCall = $.ajax({
+			type: 'GET',
+			url: '/dashboard/get_onus_auth_per_day/2',
+			timeout: 30000,
+			dataType: "json",
+			success: function(data)
+			{
+				var authOnuLabels = [];
+				var authGPONData = [];
+				var authEPONData = [];
+
+				$.each(data, function(key, value) {
+					authOnuLabels.push(value["date"]);
+					authGPONData.push(value["gpon_total"]);
+					authEPONData.push(value["epon_total"]);
+                });
+
+				var color = Chart.helpers.color;
+			    var authOnuBarChartData = {
+			        labels: authOnuLabels,
+			        datasets: [{
+			            label: 'GPON',
+			            backgroundColor: color("#0064C8").rgbString(),
+			            borderColor: "#0064C8",
+			            borderWidth: 1,
+			            data: authGPONData
+			        }, {
+			            label: 'EPON',
+			            backgroundColor: color("#F58411").rgbString(),
+			            borderColor: "#F58411",
+			            borderWidth: 1,
+			            data: authEPONData
+			        }]
+			    };
+
+			    authOnusBarChart(authOnuBarChartData);
+			}
+		});
+		registerJqxhr(onusAuthPerDayAjaxCall);
+	}
+	
+		getOnusAuthPerDay();
+	
+	function getPonOutage() {
+
+		$("#outage_pons_content").LoadingOverlay("show");
+
+		var ponOutage = $.ajax({
+			type: 'GET',
+			url: '/dashboard/get_outage_pons/2',
+			timeout: 30000,
+			dataType: "json",
+			success: function(data)
+			{
+				if (data.status && data.count) {
+					$("#outage_pons_content").html(data.html);
+				} else {
+					$("#outage_pons_content").parent().remove();
+				}
+				$("#outage_pons_content").LoadingOverlay("hide");
+			},
+			error: function(jqXHR, textStatus, errorThrown) {
+				$("#outage_pons_content").parent().remove();
+			}
+		});
+		registerJqxhr(ponOutage);
+	}
+	
+		getPonOutage();
+	
+	function authOnusBarChart(authOnuBarChartData) {
+		var ctx = document.getElementById("bar-chart-canvas").getContext("2d");
+        window.myBar = new Chart(ctx, {
+            type: 'bar',
+            data: authOnuBarChartData,
+            options: {
+                legend: {
+                    display: false
+                },
+                scales: {
+                    xAxes: [{
+                                gridLines: {
+                                    display:false
+                                }
+                            }],
+                    yAxes: [{
+                                gridLines: {
+                                    display:false
+                                },
+                                ticks: {
+                                	beginAtZero: true,
+                                	maxTicksLimit: 10,
+                                    stepSize: 1
+                                }
+                            }]
+                    }
+            }
+        });
+
+		$("#bar-chart-canvas").on('click', function (e) {
+			var bar = window.myBar.getElementAtEvent(e);
+
+			if (!bar.length) return;
+			var label = bar[0]._model.label;
+
+			window.open("/onu/configured?olt_id=2&authorization_date=" + label, "_self");
+		});
+
+	}
+
+	$(document).on('click', 'td.date-switch', function (e) {
+		$(this).closest('table').find('.date-switch').each(function (x) { 
+			var title = $(this).text();
+			$(this).text($(this).attr('title'));
+			$(this).attr('title', title);
+		})
+	});
+});
+</script>
+
+
+</div>
+<br />
+<!-- /#page-wrapper -->
+    
+<div id="saveConfigModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="saveConfigModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+		  <div class="modal-header">
+		    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+		    <h3 id="saveConfigModalLabel">Save configuration</h3>
+		  </div>
+		  <div class="modal-body">
+		    <p>This will save the current OLT(s) configuration as startup configuration. It may take up to 3 minutes for the OLT(s) to finish saving the config. Are you sure?</p>
+		  </div>
+		  <div class="modal-footer">
+		    <button class="btn btn-link" data-dismiss="modal" aria-hidden="true">No, cancel</button>
+		    <button class="btn btn-primary save-configuration-button">Yes, save configuration</button>
+		  </div>
+		</div>
+	</div>
+</div>
+
+<div id="importModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="importModalLabel" aria-hidden="true">
+</div>
+
+<div id="rebuildModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="rebuildModalLabel" aria-hidden="true">
+</div>
+
+<div id="deleteAllApiReconciliationModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="deleteAllApiReconciliationModalLabel" aria-hidden="true">
+</div>
+
+<div id="generateSnmpIdsModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="generateSnmpIdsModalLabel" aria-hidden="true">
+</div>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/vendor/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/vendor/bootstrap/js/bootstrap-multiselect.js?v=3.52.0"></script>
+
+    <!-- Metis Menu Plugin JavaScript -->
+    <script src="/vendor/metisMenu/metisMenu.min.js"></script>
+
+    <!-- Custom Theme JavaScript -->
+    <script src="/vendor/sb-admin-2/js/sb-admin-2.js"></script>
+        
+    <!-- Loading overlay -->
+    <script src="/vendor/jquery-loading-overlay-1.5.3/src/loadingoverlay.custom.js?v=2"></script>
+    
+    <!-- Message box -->
+    <script src="/vendor/jquery-message-box-2.2.1/src/messagebox.min.js"></script>
+    
+    					<!-- we are on the dashboard -->
+
+			<!-- Custom JavaScript -->
+			<script src="/vendor/dashboard/js/startmin.js"></script>
+				
+		<!-- Moment.js (required by Chart.js time scale) -->
+		<script>if (typeof moment === 'undefined') { document.write('<script src="/vendor/node_modules/moment/min/moment.min.js"><\/script>'); }</script>
+		<!-- Chart.js JavaScript (non-bundled, uses global moment) -->
+		<script src="/vendor/node_modules/chart.js/dist/Chart.min.js"></script>
+    
+
+<script type="text/javascript">
+
+$( document ).ready(function() {
+	
+	// Hide new version dot if user has already seen this version
+	var currentVersion = '3.52.0';
+	var lastSeenVersion = localStorage.getItem('lastSeenVersion');
+	if (lastSeenVersion === currentVersion) {
+		$('.new-version-dot').hide();
+	}
+
+		if (lastSeenVersion !== currentVersion) {
+		var $h2 = $('h2').first();
+		if ($h2.length) {
+			$('#smartolt-update-banner').insertAfter($h2);
+		}
+		$('#smartolt-update-banner').show();
+	}
+	
+	$('#smartolt-update-banner-changelog').on('click', function(e) {
+		e.preventDefault();
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+		window.location.href = '/changelog';
+	});
+
+	$('#smartolt-update-banner-dismiss').on('click', function() {
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+		$('#smartolt-update-banner').slideUp(300);
+	});
+
+	$('#footer-changelog-link').on('click', function() {
+		localStorage.setItem('lastSeenVersion', currentVersion);
+		$('.new-version-dot').hide();
+	});
+
+	//hide alert-success after 5 seconds
+	/*setTimeout(function(){
+		$('.alert-success').not('.nofade').fadeOut();
+	},5000);*/
+	
+	var waitingForOLT   = $("<div>", {
+	    id      : "waitingOLT",
+	    css     : {
+	        "font-size" : "50px",
+			"white-space" : "nowrap"
+	    },
+	    text    : "Waiting for OLT"
+	});
+
+	var loadingOverlaySettings = {
+		    image       : "",
+		    fontawesome : "fa fa-spinner fa-spin",
+		    custom  : waitingForOLT,
+		    resizeInterval : 0
+		};
+
+	$.LoadingOverlay("append", loadingOverlaySettings);
+
+	window.showLoadingOverlay = function(loadingText = null) {
+		if(loadingText != null) {
+			$("#waitingOLT").text(loadingText);
+		}
+		else {
+			$("#waitingOLT").text("Waiting for OLT");
+		}
+		
+		$.LoadingOverlay("show", loadingOverlaySettings);
+	}
+
+	window.hideLoadingOverlay = function() {
+		$.LoadingOverlay("hide");
+	}
+
+	window.isLoadingOverlayVisible = function() {
+		return $('.loadingoverlay').is(":visible");
+	}
+	
+	//hide loading overlay when ajax request finishes
+	/*$(document).ajaxStop(function(){
+		hideLoadingOverlay();
+	});*/
+
+	//show toast with error
+	$(document).ajaxError(function(requestObject, error, errorThrown) {
+		if(error.status != 404 && error != undefined && error.responseJSON != undefined && 
+				error.responseJSON.error != undefined && error.responseJSON.error.length > 0) {
+			toast(error.responseJSON.error);
+		}
+	});
+
+	//confirm message box
+	window.MessageBoxConfirm = function(message){
+	    return $.MessageBox({
+	        buttonDone  : "OK",
+	        buttonFail  : "Cancel",
+	        message     : message
+	    });
+	}
+
+	window.getSelectedText = function() {
+        if (window.getSelection) {
+            return window.getSelection().toString();
+        } 
+        else if (document.selection) {
+            return document.selection.createRange().text;
+        }
+        return '';
+    }
+
+	//close navbar menu when clicking outside of it
+	$(document).click(function (event) {
+		var clickover = $(event.target);
+		var $nav = $("div.navbar-collapse");
+        var _opened = $nav.hasClass("in");
+
+        if (_opened === true && !clickover.hasClass("navbar-toggle")) {
+			$nav.collapse('hide');
+        }
+    });
+
+	/*https://www.quirksmode.org/blog/archives/2014/02/mouse_event_bub.html
+	  Safari on iOS only allows the mouse events, including click, to bubble up in the following situations:
+	  1. The target element of the event is a link or a form field.
+	  2. The target element, or any of its ancestors up to but not including the <body>, has an explicit event handler set for any of the mouse events. This event handler may be an empty function.
+      3. The target element, or any of its ancestors up to and including the document has a cursor: pointer CSS declarations. */
+	$("#content-wrapper").click(function (event) {
+		//this is here only for iOS to allow mouse events to bubble up so we can close navbar menu when clicking outside of it
+    });
+
+	// check navbar menu top offset
+    function closeMenuIfOpened() {
+		var $nav = $("div.navbar-collapse");
+    	var _opened = $nav.hasClass("in");
+
+        if (_opened === true && $(".navbar").offset().top > 50) {
+			$nav.collapse('hide');
+        }
+    }
+
+    //for touch devices, detect zoom in/out events and close the navbar menu if opened
+    var tracks = [];
+    $(window).on("touchmove", function (event) {
+	
+	    //only run code if the user has two fingers touching
+	    if (event.originalEvent.touches.length === 2) {
+	
+	        //track the touches, I'm setting each touch as an array inside the tracks array
+	        //each touch array contains an X and Y coordinate
+	        tracks.push([ [event.originalEvent.touches[0].pageX, event.originalEvent.touches[0].pageY], [event.originalEvent.touches[1].pageX, event.originalEvent.touches[1].pageY] ]);
+	    }
+	}).on("touchstart", function () {
+	    //start-over
+	    tracks = [];
+	}).on("touchend", function () {
+	    if(tracks.length > 0) {
+			var $nav = $("div.navbar-collapse");
+	    	var _opened = $nav.hasClass("in");
+	        if (_opened === true) {
+				$nav.collapse('hide');
+	        }
+	    }
+	});
+
+	// COPY TO CLIPBOARD
+	// Attempts to use .execCommand('copy') on a created text field
+	// Falls back to a selectable alert if not supported
+	// Attempts to display status in Bootstrap tooltip
+	// ------------------------------------------------------------------------------
+
+	function copyToClipboard(text, el) {
+	  var copyTest = document.queryCommandSupported('copy');
+	  var elOriginalText = el.attr('data-original-title');
+
+	  if (copyTest === true) {
+	    var copyTextArea = document.createElement("textarea");
+	    copyTextArea.value = text;
+	    document.body.appendChild(copyTextArea);
+	    copyTextArea.select();
+	    try {
+	      var successful = document.execCommand('copy');
+	      var msg = successful ? "Copied!" : "Whoops, not copied!";
+	      el.attr('data-original-title', msg).tooltip('show');
+	    } 
+	    catch (err) {
+	      console.log("Oops, unable to copy");
+	    }
+	    document.body.removeChild(copyTextArea);
+	    el.attr('data-original-title', elOriginalText);
+	  } 
+	  else {
+	    // Fallback if browser doesn't support .execCommand('copy')
+	    window.prompt("Copy to clipboard", text);
+	  }
+	}
+
+	function copyToClipboard2(text, el) {
+		  if (document.queryCommandSupported('copy') === true) {
+			var elOriginalText = el.attr('data-original-title');
+	 	    var copyTextArea = document.createElement("textarea");
+		    copyTextArea.textContent = text.text();
+		    document.body.appendChild(copyTextArea);
+
+		    var selection = document.getSelection();
+		    var range = document.createRange();
+		    range.selectNode(copyTextArea);
+		    selection.removeAllRanges();
+		    selection.addRange(range);
+		    
+		    try {
+		      var successful = document.execCommand('copy');
+			  var msg;
+
+			  if (successful) {
+				  msg = "Copied!";
+			  } 
+			  else {
+				msg = "Whoops, not copied!";
+				el.removeClass('not-selectable');
+			  }
+		      el.attr('data-original-title', msg).tooltip('show');
+		    } 
+		    catch (err) {
+		      console.log("Oops, unable to copy");
+		    }
+		    selection.removeAllRanges();
+		    document.body.removeChild(copyTextArea);
+		    el.attr('data-original-title', elOriginalText);
+		  } 
+		  else {
+			$('.not-selectable').removeClass('not-selectable');
+		    // Fallback if browser doesn't support .execCommand('copy')
+		    window.prompt("Copy to clipboard", text.text());
+		  }
+		}
+
+	// Initialize
+   // ---------------------------------------------------------------------
+
+   // Tooltips
+   // Requires Bootstrap 3 for functionality
+   $('.js-tooltip').tooltip();
+
+   // Copy to clipboard
+   // Grab any text in the attribute 'data-copy' and pass it to the 
+   // copy function
+   $('.js-copy').click(function() {
+     var text = $(this).attr('data-copy');
+     var el = $(this);
+     copyToClipboard(text, el);
+   });
+
+   $(document).on('click','.comma-copy', function() {
+	   $(this).removeClass('btn-primary').addClass('btn-default');
+	     var el = $('#'+$(this).attr('data-idtag'));
+	     copyToClipboard2(el, $(this));
+	     el.removeClass('text-primary').addClass('text-muted');
+	   });
+
+   //trim white spaces when paste in any input
+   $(document).on('paste', 'input[type=text]', function(e) {
+	  // prevent copying action
+	  e.preventDefault();
+	  
+	  var pastedText = e.originalEvent.clipboardData.getData('Text');
+	  var withoutSpaces = pastedText;
+	  if(pastedText) {
+		  withoutSpaces = pastedText.trim();
+	  }
+
+	  //remove all spaces, including from inside the text
+	  if($(this).hasClass('no_spaces')) {
+		  withoutSpaces = withoutSpaces.replace(/\s/g, '');
+	  }
+	  
+	  $(this).insertAtCaret(withoutSpaces);
+	});
+
+   $.fn.insertAtCaret = function(text) {
+	    return this.each(function() {
+	        if (document.selection && this.tagName == 'TEXTAREA') {
+	            //IE textarea support
+	            this.focus();
+	            sel = document.selection.createRange();
+	            sel.text = text;
+	            this.focus();
+	        } else if (this.selectionStart || this.selectionStart == '0') {
+	            //MOZILLA/NETSCAPE support
+	            startPos = this.selectionStart;
+	            endPos = this.selectionEnd;
+	            scrollTop = this.scrollTop;
+	            this.value = this.value.substring(0, startPos) + text + this.value.substring(endPos, this.value.length);
+	            this.focus();
+	            this.selectionStart = startPos + text.length;
+	            this.selectionEnd = startPos + text.length;
+	            this.scrollTop = scrollTop;
+	        } else {
+	            // IE input[type=text] and other browsers
+	            this.value += text;
+	            this.focus();
+	            this.value = this.value;    // forces cursor to end
+	        }
+	    });
+	};
+    
+	
+  $('.save-configuration-button').click(function (){
+    var button = $('.save-configuration-anchor');
+
+    button.toggleClass('active');
+    button.attr('disabled', true);
+    button.text("Saving...");
+    $('#saveConfigModal').modal('hide');
+
+    $.ajax({
+        method: "GET",
+        beforeSend: function(request) {
+		    request.setRequestHeader("X-Token", config.X_TOKEN);
+		  },
+        url: "/api/system/write",
+      })
+      .done(function( response ) {
+        button.text("Save complete!");
+        setTimeout(function () {
+          button.toggleClass('active');
+          button.attr('disabled', false);
+          button.text("Save config");
+        }, 1000);
+      })
+      .fail(function(jqXHR, textStatus) {
+    	  if(jqXHR.responseJSON) {
+				$.MessageBox(jqXHR.responseJSON.error);
+			}
+			else {
+				$.MessageBox(jqXHR.responseText);
+			}
+	        setTimeout(function () {
+	        	 button.toggleClass('active');
+	             button.attr('disabled', false);
+	             button.text("Save config");
+	        }, 1000);
+      });
+  });
+
+    
+});
+</script>
+
+</div>
+
+<style>
+.new-version-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	background-color: #5cb85c;
+	border-radius: 50%;
+	margin-left: 4px;
+	animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+	0% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(92, 184, 92, 0.7);
+	}
+	70% {
+		transform: scale(1);
+		box-shadow: 0 0 0 6px rgba(92, 184, 92, 0);
+	}
+	100% {
+		transform: scale(0.95);
+		box-shadow: 0 0 0 0 rgba(92, 184, 92, 0);
+	}
+}
+
+</style>
+
+<footer>
+	<div class="text-center row">SmartOLT <a href="/changelog" class="btn-link" id="footer-changelog-link">v3.52.0<span class="new-version-dot" title="New updates"></span></a> &copy; 2026</div>
+</footer>
+
+</body>
+
+</html>

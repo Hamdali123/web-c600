@@ -35,7 +35,11 @@ export async function POST(request: Request) {
       portInfo,
       onuId,
       onuType: onuType?.name,
-      vlan: parseInt(vlan)
+      vlan: parseInt(vlan),
+      name,
+      mode: mode || 'route',
+      pppoeUser,
+      pppoePass
     });
 
     // 2. Save to Database
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
         olt_id: parseInt(oltId),
         pon_port: portInfo,
         onu_id: onuId,
-        vlan: parseInt(vlan),
+        vlan: String(vlan),
         mode: mode,
         pppoe_user: pppoeUser,
         pppoe_pass: pppoePass,
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
         zone_id: zoneId ? parseInt(zoneId) : null,
         odb_id: odbId ? parseInt(odbId) : null,
         profile_id: profileId ? parseInt(profileId) : null,
-        status: 'Online',
+        status: body.isOffline ? 'Offline' : 'Online',
         contact: contact,
         notes: notes,
         wan_mode: wan_mode || 'PPPoE'

@@ -31,6 +31,26 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, name, upload, download } = body;
+
+    const profile = await prisma.speedProfile.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        upload: parseInt(upload),
+        download: parseInt(download)
+      }
+    });
+
+    return NextResponse.json({ success: true, data: profile });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

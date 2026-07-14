@@ -1,10 +1,13 @@
 import cron from 'node-cron';
-import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails } from './oltConnection';
+import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails, authorizeOnu } from './oltConnection';
 import prisma from './prisma';
 import { createNotification } from './notifications';
 
 // 1. Radar: Mengecek OLT untuk ONU baru (Setiap 1 menit)
+let isUnconfiguredSyncing = false;
 cron.schedule('* * * * *', async () => {
+    if (isUnconfiguredSyncing) return;
+    isUnconfiguredSyncing = true;
     try {
         const olts = await prisma.oLTDevice.findMany();
 
@@ -20,17 +23,25 @@ cron.schedule('* * * * *', async () => {
 
             if (creds.vendor === 'zte') {
                 try {
-                    const output = await executeOltCommand(creds, 'show gpon onu uncfg');
+                    let output = await executeOltCommand(creds, 'show gpon onu uncfg').catch(() => '');
+                    if (!output || output.includes('%Error') || output.includes('Invalid input')) {
+                        output = await executeOltCommand(creds, 'show pon onu uncfg').catch(() => '');
+                    }
+                    
                     const lines = output.split('\n');
                     for (const line of lines) {
-                        const match = line.match(/(gpon-olt_\d+\/\d+\/\d+):(\d+)\s+(ZTEG[A-Z0-9]+)/i);
+                        const match = line.match(/(gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)(\d+\/\d+\/\d+)(?::(\d+))?\s+(ZTEG[A-Z0-9]+)/i);
                         if (match) {
-                            const port = match[1];
-                            const onuId = match[2];
-                            const sn = match[3];
+                            const port = 'gpon_olt-' + match[2];
+                            const onuId = match[3] || '1'; // Unconfigured ONU might not have ID yet depending on firmware
+                            const sn = match[4];
 
-                            const exists = await prisma.oNUUnconfigured.findUnique({ where: { sn_mac: sn } });
-                            if (!exists) {
+                            // 1. Cek apakah unconfigured ini sudah terdaftar sebelumnya
+                            const existsUncfg = await prisma.oNUUnconfigured.findUnique({ where: { sn_mac: sn } });
+                            const existsConfigured = await prisma.oNUConfigured.findUnique({ where: { sn_mac: sn } });
+
+                            if (!existsConfigured && !existsUncfg) {
+                                // Simpan ke database unconfigured
                                 await prisma.oNUUnconfigured.create({
                                     data: {
                                         sn_mac: sn,
@@ -40,6 +51,77 @@ cron.schedule('* * * * *', async () => {
                                     }
                                 });
                                 console.log(`[Radar] Ditemukan ONU Baru! SN: ${sn} di Port: ${port}`);
+
+                                // 2. AUTO-AUTHORIZATION ENGINE (Mesin Autorisasi Otomatis Berdasarkan SN Pattern / Awalan ONU)
+                                const presets = await prisma.authPreset.findMany();
+                                const matchingPreset = presets.find(p => {
+                                    const cleanPattern = (p.sn_pattern || '').replace('*', '').trim().toUpperCase();
+                                    return cleanPattern && sn.toUpperCase().startsWith(cleanPattern);
+                                });
+
+                                if (matchingPreset) {
+                                    console.log(`[Auto-Auth] ONU matches preset: ${matchingPreset.name}. Initiating auto-auth for SN: ${sn}`);
+                                    try {
+                                        const defaultOnuType = await prisma.oNUType.findFirst({
+                                            where: { pon_type: 'GPON' }
+                                        });
+
+                                        const namePattern = `AUTO-${sn.slice(-4)}`;
+
+                                        // Kirim command provisioning ke OLT
+                                        await authorizeOnu(creds, {
+                                            sn,
+                                            portInfo: port,
+                                            onuId,
+                                            onuType: defaultOnuType?.name || 'ZTE-F609',
+                                            vlan: Number(matchingPreset.vlan || 1),
+                                            name: namePattern,
+                                            mode: (matchingPreset.mode === 'bridge' ? 'bridge' : 'route'),
+                                            pppoeUser: '',
+                                            pppoePass: ''
+                                        });
+
+                                        // Simpan ke database ONU terkonfigurasi
+                                        await prisma.oNUConfigured.create({
+                                            data: {
+                                                sn_mac: sn,
+                                                name: namePattern,
+                                                olt_id: olt.id,
+                                                pon_port: port,
+                                                onu_id: onuId,
+                                                vlan: String(matchingPreset.vlan || "1"),
+                                                mode: matchingPreset.mode,
+                                                profile_id: matchingPreset.profile_id,
+                                                zone_id: matchingPreset.zone_id,
+                                                status: 'Online',
+                                                wan_mode: 'PPPoE'
+                                            }
+                                        });
+
+                                        // Hapus dari daftar unconfigured
+                                        await prisma.oNUUnconfigured.deleteMany({ where: { sn_mac: sn } });
+
+                                        // Catat log kesuksesan
+                                        await prisma.activityLog.create({
+                                            data: {
+                                                action: 'Auto-Authorize ONU',
+                                                details: `Successfully auto-authorized SN: ${sn} using preset: ${matchingPreset.name}`,
+                                                status: 'Success'
+                                            }
+                                        });
+
+                                        console.log(`[Auto-Auth] Sukses auto-authorisasi ONU SN: ${sn}`);
+                                    } catch (e: any) {
+                                        console.error(`[Auto-Auth] Gagal auto-authorisasi ONU SN: ${sn}:`, e);
+                                        await prisma.activityLog.create({
+                                            data: {
+                                                action: 'Auto-Authorize ONU',
+                                                details: `Failed to auto-authorize SN: ${sn}: ${e.message}`,
+                                                status: 'Error'
+                                            }
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
@@ -50,11 +132,16 @@ cron.schedule('* * * * *', async () => {
         }
     } catch (error) {
         console.error("[Radar] Error:", error);
+    } finally {
+        isUnconfiguredSyncing = false;
     }
 });
 
 // 2. Status Sync: Update status (Online/Offline) dan Sinyal ONU (Setiap 2 menit)
+let isStatusSyncing = false;
 cron.schedule('*/2 * * * *', async () => {
+    if (isStatusSyncing) return;
+    isStatusSyncing = true;
     try {
         const olts = await prisma.oLTDevice.findMany();
         for (const olt of olts) {
@@ -72,43 +159,68 @@ cron.schedule('*/2 * * * *', async () => {
 
             try {
                 const stateOutput = await executeOltCommand(creds, 'show gpon onu state');
+                const stateLines = stateOutput.split('\n');
 
                 for (const onu of configuredOnus) {
-                    const stateMatch = stateOutput.match(new RegExp(`${onu.pon_port}:${onu.onu_id}\\s+(\\w+)`, 'i'));
-                    if (stateMatch) {
-                        const state = stateMatch[1].toLowerCase();
-                        const status = state === 'working' ? 'Online' : 'Offline';
-                        const reason = state !== 'working' ? state : null;
-
-                        // Update Status Utama
-                        await prisma.oNUConfigured.update({
-                            where: { id: onu.id },
-                            data: {
-                                status: status,
-                                offline_reason: reason === 'working' ? null : reason
+                    const portNumber = (onu.pon_port || '').replace('gpon-olt_', '');
+                    const targetIndex = `${portNumber}:${onu.onu_id}`;
+                    
+                    let state = null;
+                    for (const line of stateLines) {
+                        const trimmed = line.trim();
+                        // Match if line starts with the ONU index (e.g. 1/2/1:2)
+                        if (trimmed.startsWith(targetIndex + ' ') || trimmed.startsWith(targetIndex + '\t')) {
+                            const parts = trimmed.split(/\s+/);
+                            if (parts.length >= 6) {
+                                state = parts[5].toLowerCase();
+                            } else if (parts.length >= 4) {
+                                state = parts[3].toLowerCase();
                             }
-                        });
+                            break;
+                        }
+                    }
 
-                        // Jika Online, ambil sinyal & detail
-                        if (status === 'Online') {
+                    // If not found in output (likely due to telnet truncation), skip updating this ONU to avoid false offlines
+                    if (!state) continue;
+
+                    const status = state === 'working' ? 'Online' : 'Offline';
+                    const reason = state !== 'working' ? state : null;
+
+                    // Update Status Utama
+                    await prisma.oNUConfigured.update({
+                        where: { id: onu.id },
+                        data: {
+                            status: status,
+                            offline_reason: reason === 'working' ? null : reason
+                        }
+                    });
+
+                    // Jika Online, ambil sinyal & detail
+                    if (status === 'Online') {
                             try {
-                                const att = await readOltAttenuation(creds, onu.pon_port || '');
+                                const onuInterface = creds.vendor === 'zte' ? `gpon_onu-${portNumber}:${onu.onu_id}` : onu.pon_port;
+                                const att = await readOltAttenuation(creds, onuInterface || '');
                                 const signal = parseFloat(att.onu_rx_power);
                                 const signal_tx = parseFloat(att.onu_tx_power);
 
-                                const details = await getOnuDetails(creds, onu.pon_port || '', onu.onu_id || '');
+                                const details = await getOnuDetails(creds, onuInterface || '', onu.onu_id || '');
+
+                                const updateData: any = {
+                                    signal_tx: isNaN(signal_tx) ? null : signal_tx,
+                                    uptime: (details as any).uptime || null,
+                                    distance: details.distance || null,
+                                    voip_status: (details as any).voip_status || 'Down',
+                                    tv_status: (details as any).tv_status || 'Down',
+                                    last_online: new Date()
+                                };
+
+                                if (signal !== -40) {
+                                    updateData.signal = isNaN(signal) ? null : signal;
+                                }
 
                                 await prisma.oNUConfigured.update({
                                     where: { id: onu.id },
-                                    data: {
-                                        signal: isNaN(signal) ? null : signal,
-                                        signal_tx: isNaN(signal_tx) ? null : signal_tx,
-                                        uptime: details.uptime || null,
-                                        distance: details.distance || null,
-                                        voip_status: details.voip_status || 'Down',
-                                        tv_status: details.tv_status || 'Down',
-                                        last_online: new Date()
-                                    }
+                                    data: updateData
                                 });
 
                                 // Record History (Setiap 5 menit)
@@ -125,29 +237,61 @@ cron.schedule('*/2 * * * *', async () => {
                             } catch (e) {
                                 console.error(`[Sync] Gagal ambil detail ONU ${onu.sn_mac}`);
                             }
+                            
+                            // Notifikasi Lemah Sinyal (Weak Signal)
+                            if (onu.signal !== null && onu.signal <= -27) {
+                                // Prevent spamming by checking history
+                                const recentSignalWarning = await prisma.activityLog.findFirst({
+                                    where: { 
+                                        action: 'Weak Signal', 
+                                        details: { contains: onu.sn_mac },
+                                        createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } // only once per hour
+                                    }
+                                });
+                                
+                                if (!recentSignalWarning) {
+                                    await createNotification(
+                                        onu.id,
+                                        `ONU ${onu.name} (${onu.sn_mac}) has weak signal: ${onu.signal} dBm`,
+                                        'warning'
+                                    );
+                                    await prisma.activityLog.create({
+                                        data: {
+                                            action: 'Weak Signal',
+                                            details: `ONU ${onu.sn_mac} signal dropped to ${onu.signal} dBm`,
+                                            status: 'Warning'
+                                        }
+                                    });
+                                }
+                            }
                         } else {
                             // Notifikasi Offline
-                            if (reason === 'Power Failed' || reason === 'LOS' || reason === 'dyinggasp') {
+                            const offlineReasonLower = reason?.toLowerCase() || '';
+                            if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dyinggasp')) {
                                 await createNotification(
                                     onu.id,
                                     `ONU ${onu.name} is ${status} (${reason})`,
-                                    reason === 'LOS' ? 'error' : 'warning'
+                                    offlineReasonLower.includes('los') ? 'error' : 'warning'
                                 );
                             }
                         }
                     }
-                }
             } catch (e) {
                 console.error(`[Sync] Gagal ambil status state dari OLT ${olt.name}`);
             }
         }
     } catch (error) {
         console.error("[Sync] Error:", error);
+    } finally {
+        isStatusSyncing = false;
     }
 });
 
 // 3. Hardware Metrics: Sync OLT CPU, Mem, Temp (Setiap 5 menit)
+let isMetricsSyncing = false;
 cron.schedule('*/5 * * * *', async () => {
+    if (isMetricsSyncing) return;
+    isMetricsSyncing = true;
     try {
         const olts = await prisma.oLTDevice.findMany();
         for (const olt of olts) {
@@ -177,5 +321,7 @@ cron.schedule('*/5 * * * *', async () => {
         }
     } catch (error) {
         console.error("[Metrics] Error:", error);
+    } finally {
+        isMetricsSyncing = false;
     }
 });

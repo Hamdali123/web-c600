@@ -1,0 +1,273 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+
+export default function Dashboard() {
+  const [stats, setStats] = useState({
+    online: 0,
+    offline: 0,
+    powerFailed: 0,
+    los: 0,
+    unconfigured: 0,
+    totalAuthorized: 0,
+    lowSignals: 0,
+    signalWarning: 0,
+    signalCritical: 0,
+  });
+
+  const [olts, setOlts] = useState<any[]>([]);
+  const [selectedOltId, setSelectedOltId] = useState<string>('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const queryParam = selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : '';
+        const res = await fetch(`/api/dashboard${queryParam}`);
+        const data = await res.json();
+        setStats({
+          online: data.online || 0,
+          offline: data.offline || 0,
+          powerFailed: data.powerFailed || 0,
+          los: data.los || 0,
+          unconfigured: data.unconfigured || 0,
+          totalAuthorized: data.totalAuthorized || 0,
+          lowSignals: data.lowSignals || 0,
+          signalWarning: data.signalWarning || 0,
+          signalCritical: data.signalCritical || 0,
+        });
+        if (data.olts) {
+          setOlts(data.olts);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setLoading(false);
+    }
+    fetchStats();
+    const interval = setInterval(fetchStats, 15000); 
+    return () => clearInterval(interval);
+  }, [selectedOltId]);
+
+  const selectedOlt = olts.find(o => String(o.id) === selectedOltId);
+  const selectedOltLabel = selectedOlt ? `${selectedOlt.id} - ${selectedOlt.name}` : 'All';
+  const displayOltName = selectedOlt ? `OLT ${selectedOlt.manufacturer?.toUpperCase() || ''}-${selectedOlt.name}` : 'All OLTs';
+
+  return (
+    <div className="container-fluid content-wrap">
+      <div id="smartolt-update-banner" className="alert alert-success alert-dismissible" role="alert" style={{ display: 'none' }}>
+        <button type="button" className="close" id="smartolt-update-banner-dismiss" aria-label="Dismiss"><span aria-hidden="true">&times;</span></button>
+        <i className="fa fa-gift"></i>
+        <strong>SmartOLT has been updated</strong>
+      </div>
+      <h2>Dashboard</h2>
+      
+      <div className="row">
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-primary">
+            <a href={`/onu/unconfigured${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-magic fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge waiting-auth">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.unconfigured}</div>
+                    <div>Waiting authorization</div>
+                  </div>
+                </div>
+              </div>
+              <div className="panel-footer">
+                <span className="pull-left disabled-waiting-auth" title="Administratively Disabled ONTs">D: 0</span>
+                <span className="pull-left margin-left move-waiting-auth" title="ONTs to be resynced or moved" style={{marginLeft: '10px'}}>Resync: 0</span>
+                <span className="pull-right auth-waiting-auth" title="ONTs to be authorized">New: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.unconfigured}</span>
+                <div className="clearfix"></div>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-green">
+            <a href={`/onu/configured${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-tasks fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge online">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.online}</div>
+                    <div>Online</div>
+                  </div>
+                </div>
+              </div>
+              <div className="panel-footer">
+                <span className="pull-left total-auth">Total authorized: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.totalAuthorized}</span>
+                <span className="pull-right"></span>
+                <div className="clearfix"></div>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-red">
+            <a href={`/onu/configured?status=pwrfail,los,offline${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-close fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge total-offline">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.offline}</div>
+                    <div>Total offline</div>
+                  </div>
+                </div>
+              </div>
+            </a>
+            <div className="panel-footer">
+              <a href={`/onu/configured?status=pwrfail${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-left power-fail" title="ONTs with offline reason: Electricity lost">PwrFail: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.powerFailed}</span>
+              </a>
+              <a href={`/onu/configured?status=los${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`} style={{marginLeft: '10px'}}>
+                <span className="pull-left margin-left los" title="ONTs with offline reason: Loss of Signal">LoS: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.los}</span>
+              </a>
+              <a href={`/onu/configured?status=offline${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-right offline" title="ONTs that have never been online since the OLT was restarted">N/A: {loading ? <i className="fa fa-spinner fa-spin"></i> : (stats.offline - stats.powerFailed - stats.los)}</span>
+              </a>
+              <div className="clearfix"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-3 col-md-6" id="graphs">
+          <div className="panel panel-yellow">
+            <a href={`/diagnostics?signal=critical,warning${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-exclamation-circle fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge total-signal-low">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.lowSignals}</div>
+                    <div>Low signals</div>
+                  </div>
+                </div>
+              </div>
+            </a>
+            <div className="panel-footer">
+              <a href={`/diagnostics?signal=warning${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-left signal-warning" title="ONTs with signal level lower than the warning threshold">Warning: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.signalWarning}</span>
+              </a>
+              <a href={`/diagnostics?signal=critical${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-right signal-critical" title="ONTs with signal level lower than the critical threshold">Critical: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.signalCritical}</span>
+              </a>
+              <div className="clearfix"></div>
+            </div>
+          </div>
+          <p className="text-right updated-date">{new Date().toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="row">
+        <div className="col-lg-8">
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-bar-chart-o fa-fw"></i> Network status
+              <div className="pull-right panel-heading-button">
+                <div className="btn-group">
+                  <button type="button" className="btn btn-default btn-xs dropdown-toggle panel-heading-dropdown-toggle" data-toggle="dropdown">
+                    More graphs <span className="caret"></span>
+                  </button>
+                  <ul className="dropdown-menu pull-right" role="menu">
+                    <li><a href="#graphs" className='network_status_graph' data-period='hourly'>Hourly graph</a></li>
+                    <li><a href="#graphs" className='network_status_graph' data-period='daily'>Daily graph</a></li>
+                    <li><a href="#graphs" className='network_status_graph' data-period='weekly'>Weekly graph</a></li>
+                    <li><a href="#graphs" className='network_status_graph' data-period='monthly'>Monthly graph</a></li>
+                    <li><a href="#graphs" className='network_status_graph' data-period='yearly'>Yearly graph</a></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="panel-body text-center" id="onusStatusesGraph">
+               <img className="img-responsive img-rounded center-block" src={`https://sanwanay.smartolt.com/graphs_olt/get_daily_onus_statuses/dashboard/${selectedOltId}`} alt="daily statuses" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+               <div style={{height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #eee', marginTop: '10px'}}>
+                  <span className="text-muted">Graph Data</span>
+               </div>
+            </div>
+          </div>
+
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-heartbeat" aria-hidden="true"></i> PON outage
+            </div>
+            <div className="table-responsive" id="outage_pons_content">
+              <div className="panel-body text-center text-muted">
+                No outages detected
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-4">
+          <div className="panel panel-default panel-olt">
+            <div className="panel-heading">
+              {displayOltName}
+              <div className="pull-right panel-heading-button">
+                <div className="btn-group">
+                  <button type="button" className="btn btn-default btn-xs dropdown-toggle panel-heading-dropdown-toggle" data-toggle="dropdown">
+                    <span id="selected_olt">{selectedOltLabel}</span>
+                    <span className="caret"></span>
+                  </button>
+                  <ul className="dropdown-menu pull-right" role="menu" id="dropdownOlts">
+                    <li><a href="#" className="olt_option min-width-250" onClick={(e) => { e.preventDefault(); setSelectedOltId('all'); }}>All</a></li>
+                    {olts.map(o => (
+                      <li key={o.id}>
+                        <a href="#" className="olt_option" onClick={(e) => { e.preventDefault(); setSelectedOltId(String(o.id)); }}>
+                          <span>{o.id} - {o.name}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="panel-body text-center">
+              <img className="dashboard-img" src={selectedOlt?.manufacturer?.toLowerCase() === 'huawei' ? "https://sanwanay.smartolt.com/content/img/Huawei-MA5608T.png" : "https://sanwanay.smartolt.com/content/img/ZTE-C600.png"} alt="OLT device" style={{maxWidth: '200px'}} />
+              <div className="list-group text-left margin-top-xlg" style={{marginTop: '20px'}}>
+                <span className="list-group-item">
+                  <i className="fa fa-cogs fa-fw"></i> Uptime
+                  <span className="pull-right">
+                    <em id={`olt-up-time-${selectedOltId}`} className="small">
+                      {selectedOlt ? `${selectedOlt.uptime || 'Uptime: N/A'}` : 'N/A'}
+                    </em>
+                    {selectedOlt?.temperature && (
+                      <em id={`olt-env-temp-${selectedOltId}`} className="small text-success" style={{marginLeft: '5px'}}>
+                        {selectedOlt.temperature}°C
+                      </em>
+                    )}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-info-circle fa-fw"></i> Info
+            </div>
+            <div className="panel-body">
+              <div className="list-group">
+                <a href="/info" className="list-group-item">
+                  <i className="fa fa-user-o fa-fw"></i> Auto config backup saved for OLT
+                  <span className="pull-right small"><em>16 hours ago</em></span>
+                </a>
+              </div>
+              <a href={`/info${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`} className="btn btn-default btn-block">View All Info</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

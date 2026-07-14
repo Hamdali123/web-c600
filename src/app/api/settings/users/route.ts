@@ -38,8 +38,12 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false }, { status: 400 });
-
-    await prisma.user.delete({ where: { id: parseInt(id) } });
+    const userId = parseInt(id);
+    
+    // Delete related activity logs to avoid foreign key constraints
+    await prisma.activityLog.deleteMany({ where: { user_id: userId } });
+    
+    await prisma.user.delete({ where: { id: userId } });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ success: false }, { status: 500 });

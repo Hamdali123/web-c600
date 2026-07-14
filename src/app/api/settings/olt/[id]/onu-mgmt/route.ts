@@ -10,14 +10,17 @@ export async function GET(
     const oltId = parseInt(id);
 
     const onus = await prisma.oNUConfigured.findMany({
-      where: { olt_id: oltId, mgmt_ip: { not: '' } },
+      where: { olt_id: oltId },
       select: {
         id: true,
         name: true,
         sn_mac: true,
         mgmt_ip: true,
         pon_port: true,
-        onu_id: true
+        onu_id: true,
+        wan_mode: true,
+        pppoe_user: true,
+        status: true
       }
     });
 

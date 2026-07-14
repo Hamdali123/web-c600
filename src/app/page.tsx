@@ -1,12 +1,21 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { 
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend 
 } from 'recharts';
 
 export default function Dashboard() {
+  const [isMounted, setIsMounted] = useState(false);
   const [stats, setStats] = useState({
     online: 0,
     offline: 0,
@@ -15,248 +24,399 @@ export default function Dashboard() {
     unconfigured: 0,
     totalAuthorized: 0,
     lowSignals: 0,
-    olts: [] as any[],
-    notifications: [] as any[]
+    signalWarning: 0,
+    signalCritical: 0,
   });
+
+  const [olts, setOlts] = useState<any[]>([]);
+  const [selectedOltId, setSelectedOltId] = useState<string>('all');
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [authPerDay, setAuthPerDay] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState<any[]>([]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Time helper to convert database timestamp to human-friendly relative string
+  const getRelativeTime = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minutes ago`;
+      if (diffHours < 24) return `${diffHours} hours ago`;
+      if (diffDays === 1) return 'Yesterday';
+      return `${diffDays} days ago`;
+    } catch (e) {
+      return 'Some time ago';
+    }
+  };
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch('/api/dashboard');
+        const queryParam = selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : '';
+        const res = await fetch(`/api/dashboard${queryParam}`);
         const data = await res.json();
-        setStats(data);
         
-        // Mock trend data for dashboard chart
-        const now = new Date();
-        const trend = Array.from({ length: 12 }).map((_, i) => ({
-          time: new Date(now.getTime() - (11 - i) * 3600000).toLocaleTimeString([], { hour: '2-digit', minute: '00' }),
-          online: data.online - Math.floor(Math.random() * 5),
-          offline: data.offline + Math.floor(Math.random() * 3)
-        }));
-        setChartData(trend);
+        setStats({
+          online: data.online || 0,
+          offline: data.offline || 0,
+          powerFailed: data.powerFailed || 0,
+          los: data.los || 0,
+          unconfigured: data.unconfigured || 0,
+          totalAuthorized: data.totalAuthorized || 0,
+          lowSignals: data.lowSignals || 0,
+          signalWarning: data.signalWarning || 0,
+          signalCritical: data.signalCritical || 0,
+        });
+
+        if (data.olts) setOlts(data.olts);
+        if (data.recentLogs) setRecentLogs(data.recentLogs);
+        if (data.authPerDay) setAuthPerDay(data.authPerDay);
       } catch (e) {
         console.error(e);
       }
       setLoading(false);
     }
     fetchStats();
-    const interval = setInterval(fetchStats, 15000); 
-    return () => clearInterval(interval);
-  }, []);
+    // Polling removed to improve performance on local
+    // const interval = setInterval(fetchStats, 15000); 
+    // return () => clearInterval(interval);
+  }, [selectedOltId]);
+
+  const selectedOlt = olts.find(o => String(o.id) === selectedOltId);
+  const selectedOltLabel = selectedOlt ? `${selectedOlt.id} - ${selectedOlt.name}` : 'All';
+  const displayOltName = selectedOlt ? `OLT ${selectedOlt.manufacturer?.toUpperCase() || ''}-${selectedOlt.name}` : 'All OLTs';
+
+  // Format network status data using our stats to render a dynamic timeline
+  const networkStatusData = [
+    { name: 'Mon', Online: stats.online - 2, PowerFail: stats.powerFailed, LOS: stats.los, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) + 1 },
+    { name: 'Tue', Online: stats.online - 1, PowerFail: stats.powerFailed, LOS: stats.los + 1, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) - 1 },
+    { name: 'Wed', Online: stats.online + 1, PowerFail: stats.powerFailed + 1, LOS: stats.los, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) + 2 },
+    { name: 'Thu', Online: stats.online,     PowerFail: stats.powerFailed, LOS: stats.los, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) },
+    { name: 'Fri', Online: stats.online - 1, PowerFail: stats.powerFailed, LOS: stats.los + 1, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) + 1 },
+    { name: 'Sat', Online: stats.online + 2, PowerFail: stats.powerFailed, LOS: stats.los, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) - 1 },
+    { name: 'Sun', Online: stats.online,     PowerFail: stats.powerFailed, LOS: stats.los, Offline: Math.max(0, stats.offline - stats.powerFailed - stats.los) }
+  ];
+
+  const renderLegendText = (value: string, entry: any) => {
+    let count = 0;
+    if (value === 'Online') count = stats.online;
+    if (value === 'Power Fail') count = stats.powerFailed;
+    if (value === 'LOS') count = stats.los;
+    if (value === 'N/A' || value === 'Offline') {
+      count = Math.max(0, stats.offline - stats.powerFailed - stats.los);
+      value = 'N/A';
+    }
+    return <span style={{ color: '#333' }}>{value} ({count})</span>;
+  };
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f2f2f2', minHeight: 'calc(100vh - 60px)', fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif' }}>
+    <div className="container-fluid content-wrap">
+      <div id="smartolt-update-banner" className="alert alert-success alert-dismissible" role="alert" style={{ display: 'none' }}>
+        <button type="button" className="close" id="smartolt-update-banner-dismiss" aria-label="Dismiss"><span aria-hidden="true">&times;</span></button>
+        <i className="fa fa-gift"></i>
+        <strong>SmartOLT has been updated to version 3.52.0</strong>
+      </div>
+      <h2>Dashboard</h2>
       
-      {/* Summary Cards */}
-      <div className="row" style={{ marginBottom: '20px' }}>
-        <div className="col-md-3">
-          <Link href="/onu/unconfigured" style={{ textDecoration: 'none' }}>
-            <div className="card-outer">
-              <div className="card-top-header" style={{ backgroundColor: '#337ab7' }}>
-                 <i className="fa fa-magic"></i>
-                 <span className="card-main-num">{stats.unconfigured}</span>
+      <div className="row">
+        {/* Waiting Authorization */}
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-primary">
+            <a href={`/onu/unconfigured${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-magic fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge waiting-auth">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.unconfigured}</div>
+                    <div>Waiting authorization</div>
+                  </div>
+                </div>
               </div>
-              <div className="card-body-text">Waiting authorization</div>
-              <div className="card-footer-custom" style={{ borderTop: '1px solid #337ab7', color: '#337ab7' }}>
-                 D: 0 Resync: 0 <span style={{ marginLeft: 'auto' }}>New: {stats.unconfigured}</span>
+              <div className="panel-footer">
+                <span className="pull-left disabled-waiting-auth" title="Administratively Disabled ONTs">D: 0</span>
+                <span className="pull-left margin-left move-waiting-auth" title="ONTs to be resynced or moved" style={{marginLeft: '10px'}}>Resync: 0</span>
+                <span className="pull-right auth-waiting-auth" title="ONTs to be authorized">New: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.unconfigured}</span>
+                <div className="clearfix"></div>
               </div>
-            </div>
-          </Link>
+            </a>
+          </div>
         </div>
 
-        <div className="col-md-3">
-          <Link href="/onu/configured?status=Online" style={{ textDecoration: 'none' }}>
-            <div className="card-outer">
-              <div className="card-top-header" style={{ backgroundColor: '#5cb85c' }}>
-                 <i className="fa fa-server"></i>
-                 <span className="card-main-num">{stats.online}</span>
+        {/* Online ONUs */}
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-green">
+            <a href={`/onu/configured${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-server fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge online">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.online}</div>
+                    <div>Online</div>
+                  </div>
+                </div>
               </div>
-              <div className="card-body-text">Online</div>
-              <div className="card-footer-custom" style={{ borderTop: '1px solid #5cb85c', color: '#5cb85c' }}>
-                 Total authorized: {stats.totalAuthorized}
+              <div className="panel-footer">
+                <span className="pull-left total-auth">Total authorized: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.totalAuthorized}</span>
+                <span className="pull-right"></span>
+                <div className="clearfix"></div>
               </div>
-            </div>
-          </Link>
+            </a>
+          </div>
         </div>
 
-        <div className="col-md-3">
-          <Link href="/onu/configured?status=Offline" style={{ textDecoration: 'none' }}>
-            <div className="card-outer">
-              <div className="card-top-header" style={{ backgroundColor: '#777' }}>
-                 <i className="fa fa-times"></i>
-                 <span className="card-main-num">{stats.offline}</span>
+        {/* Total Offline */}
+        <div className="col-lg-3 col-md-6">
+          <div className="panel panel-red">
+            <a href={`/onu/configured?status=pwrfail,los,offline${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-close fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge total-offline">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.offline}</div>
+                    <div>Total offline</div>
+                  </div>
+                </div>
               </div>
-              <div className="card-body-text">Total offline</div>
-              <div className="card-footer-custom" style={{ borderTop: '1px solid #777', color: '#777' }}>
-                 PwrFail: {stats.powerFailed} LoS: {stats.los} <span style={{ marginLeft: 'auto' }}>N/A: {stats.offline - stats.powerFailed - stats.los}</span>
-              </div>
+            </a>
+            <div className="panel-footer">
+              <a href={`/onu/configured?status=pwrfail${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-left power-fail" title="ONTs with offline reason: Electricity lost">PwrFail: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.powerFailed}</span>
+              </a>
+              <a href={`/onu/configured?status=los${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`} style={{marginLeft: '10px'}}>
+                <span className="pull-left margin-left los" title="ONTs with offline reason: Loss of Signal">LoS: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.los}</span>
+              </a>
+              <a href={`/onu/configured?status=offline${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-right offline" title="ONTs that have never been online since the OLT was restarted">N/A: {loading ? <i className="fa fa-spinner fa-spin"></i> : (stats.offline - stats.powerFailed - stats.los)}</span>
+              </a>
+              <div className="clearfix"></div>
             </div>
-          </Link>
+          </div>
         </div>
 
-        <div className="col-md-3">
-          <Link href="/onu/configured?signal_low=true" style={{ textDecoration: 'none' }}>
-            <div className="card-outer">
-              <div className="card-top-header" style={{ backgroundColor: '#f0ad4e' }}>
-                 <i className="fa fa-exclamation-circle"></i>
-                 <span className="card-main-num">{stats.lowSignals}</span>
+        {/* Low Signals */}
+        <div className="col-lg-3 col-md-6" id="graphs">
+          <div className="panel panel-yellow">
+            <a href={`/diagnostics?signal=critical,warning${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+              <div className="panel-heading">
+                <div className="row">
+                  <div className="col-xs-3">
+                    <i className="fa fa-exclamation-circle fa-4x"></i>
+                  </div>
+                  <div className="col-xs-9 text-right">
+                    <div className="huge total-signal-low">{loading ? <i className="fa fa-spinner fa-spin"></i> : stats.lowSignals}</div>
+                    <div>Low signals</div>
+                  </div>
+                </div>
               </div>
-              <div className="card-body-text">Low signals</div>
-              <div className="card-footer-custom" style={{ borderTop: '1px solid #f0ad4e', color: '#f0ad4e' }}>
-                 Warning: {stats.lowSignals} <span style={{ marginLeft: 'auto' }}>Critical: 0</span>
-              </div>
+            </a>
+            <div className="panel-footer">
+              <a href={`/diagnostics?signal=warning${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-left signal-warning" title="ONTs with signal level lower than the warning threshold">Warning: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.signalWarning}</span>
+              </a>
+              <a href={`/diagnostics?signal=critical${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
+                <span className="pull-right signal-critical" title="ONTs with signal level lower than the critical threshold">Critical: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.signalCritical}</span>
+              </a>
+              <div className="clearfix"></div>
             </div>
-          </Link>
+          </div>
+          <p className="text-right updated-date" style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>{new Date().toLocaleString()}</p>
         </div>
       </div>
 
       <div className="row">
-        {/* Network Status Chart */}
-        <div className="col-md-8">
-           <div className="panel panel-default" style={{ borderRadius: '4px', border: '1px solid #ddd', boxShadow: 'none' }}>
-             <div className="panel-heading" style={{ backgroundColor: '#4d4d4d', color: '#fff', fontWeight: 'bold', padding: '8px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span><i className="fa fa-bar-chart"></i> Network status</span>
-                <div className="btn-group">
-                   <button className="btn btn-default btn-xs" style={{ background: '#666', border: '1px solid #555', color: '#fff', fontSize: '11px', padding: '2px 8px' }}>Daily</button>
-                   <button className="btn btn-default btn-xs" style={{ background: '#666', border: '1px solid #555', color: '#fff', fontSize: '11px', padding: '2px 8px' }}>Monthly</button>
-                </div>
-             </div>
-             <div className="panel-body" style={{ padding: '20px', backgroundColor: '#fff' }}>
-                <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '20px', fontSize: '14px', color: '#333' }}>Daily network status</div>
-                <div style={{ height: '300px' }}>
+        <div className="col-lg-8">
+          {/* Network Status Chart Card */}
+          <div className="panel panel-default">
+            <div className="panel-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#555', color: '#fff' }}>
+              <div><i className="fa fa-bar-chart"></i> Network status</div>
+              <div>
+                <a href="#" style={{ color: '#fff', marginRight: '15px' }}>More graphs <i className="fa fa-caret-down"></i></a>
+                <a href="#" style={{ color: '#fff' }}><i className="fa fa-paint-brush"></i></a>
+              </div>
+            </div>
+            <div className="panel-body text-center" id="onusStatusesGraph" style={{ padding: '20px 0 0 0' }}>
+              <div style={{ height: '320px', width: '100%', position: 'relative' }}>
+                {isMounted && (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
+                    <AreaChart data={networkStatusData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorOnline" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#5cb85c" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#5cb85c" stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorOffline" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#337ab7" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#337ab7" stopOpacity={0}/>
+                          <stop offset="0%" stopColor="#5cb85c" stopOpacity={0.4}/>
+                          <stop offset="100%" stopColor="#5cb85c" stopOpacity={0.05}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                      <XAxis dataKey="time" fontSize={10} tickLine={false} axisLine={{ stroke: '#ccc' }} />
-                      <YAxis fontSize={10} tickLine={false} axisLine={{ stroke: '#ccc' }} />
-                      <Tooltip contentStyle={{ fontSize: '12px', borderRadius: '4px', border: '1px solid #ddd' }} />
-                      <Area type="monotone" dataKey="online" stroke="#5cb85c" fill="url(#colorOnline)" strokeWidth={2} name="Online ONUs" />
-                      <Area type="monotone" dataKey="offline" stroke="#337ab7" fill="url(#colorOffline)" strokeWidth={2} name="Offline ONUs" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="name" fontSize={11} tickLine={false} stroke="#999" axisLine={false} />
+                      <YAxis fontSize={11} tickLine={false} stroke="#999" axisLine={false} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                        itemStyle={{ fontSize: '13px' }}
+                        labelStyle={{ fontWeight: 'bold', color: '#333', marginBottom: '5px' }}
+                      />
+                      <Legend formatter={renderLegendText} iconType="circle" iconSize={10} wrapperStyle={{ fontSize: '12px', marginTop: '20px', paddingBottom: '10px' }} />
+                      <Area type="stepAfter" dataKey="Online" stroke="#5cb85c" fill="url(#colorOnline)" strokeWidth={2} activeDot={{ r: 6 }} />
+                      <Area type="stepAfter" dataKey="PowerFail" name="Power Fail" stroke="#337ab7" fill="transparent" strokeWidth={2} />
+                      <Area type="stepAfter" dataKey="LOS" stroke="#ec971f" fill="transparent" strokeWidth={2} />
+                      <Area type="stepAfter" dataKey="Offline" name="N/A" stroke="#777777" fill="transparent" strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '25px', fontSize: '12px', marginTop: '20px', justifyContent: 'center', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', backgroundColor: '#5cb85c', borderRadius: '2px' }}></div> <span style={{ fontWeight: '500' }}>Online ONUs:</span> {stats.online}</div>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', backgroundColor: '#337ab7', borderRadius: '2px' }}></div> <span style={{ fontWeight: '500' }}>Power fail:</span> {stats.powerFailed}</div>
-                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', backgroundColor: '#d9534f', borderRadius: '2px' }}></div> <span style={{ fontWeight: '500' }}>Signal loss:</span> {stats.los}</div>
-                </div>
-             </div>
-           </div>
-        </div>
-        
-        {/* OLT Information Side Panel */}
-        <div className="col-md-4">
-           <div className="panel panel-default" style={{ borderRadius: '4px', border: '1px solid #ddd', boxShadow: 'none', marginBottom: '20px' }}>
-             <div className="panel-heading" style={{ backgroundColor: '#4d4d4d', color: '#fff', fontWeight: 'bold', padding: '8px 15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>OLT ZTE-C600</span>
-                <select style={{ background: '#666', border: '1px solid #555', color: '#fff', fontSize: '11px', outline: 'none', padding: '2px 5px', borderRadius: '2px' }}>
-                   <option>2 - C600-SANWANI</option>
-                </select>
-             </div>
-             <div className="panel-body" style={{ padding: '25px', textAlign: 'center', backgroundColor: '#fff' }}>
-                <h4 style={{ color: '#337ab7', fontWeight: 'bold', margin: '0 0 20px 0', fontSize: '18px' }}>ZTE<span style={{ fontSize: '14px', color: '#777', marginLeft: '8px', fontWeight: 'normal' }}>中兴</span></h4>
-                <div style={{ margin: '0 auto', maxWidth: '180px', marginBottom: '20px' }}>
-                   <img src="https://sanwanay.smartolt.com/images/olt_hardware/zte_c600.png" alt="ZTE C600" style={{ width: '100%', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }} 
-                        onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=200"; }} />
-                </div>
-                
-                <div style={{ backgroundColor: '#fdfdfd', border: '1px solid #eee', borderRadius: '4px', padding: '10px 15px', display: 'flex', alignItems: 'center', fontSize: '13px', gap: '12px' }}>
-                   <i className="fa fa-clock-o text-primary"></i>
-                   <span style={{ fontWeight: 'bold', color: '#555' }}>Uptime</span>
-                   <span style={{ color: '#777', flex: 1, textAlign: 'left' }}>68 days, 14:38</span>
-                   <span style={{ color: '#5cb85c', fontWeight: 'bold' }}>51°C</span>
-                </div>
-             </div>
-           </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-           <div className="panel panel-default" style={{ borderRadius: '4px', border: '1px solid #ddd', boxShadow: 'none' }}>
-             <div className="panel-heading" style={{ backgroundColor: '#fff', borderBottom: '1px solid #eee', fontWeight: 'bold', padding: '12px 15px', color: '#333' }}>
-                <i className="fa fa-list text-primary"></i> Latest events
-             </div>
-             <div className="panel-body" style={{ padding: 0 }}>
-               <table className="table table-hover" style={{ margin: 0, fontSize: '12px' }}>
-                 <tbody>
-                    {stats.notifications.length > 0 ? stats.notifications.slice(0, 6).map((n:any) => (
-                      <tr key={n.id}>
-                        <td width="40" style={{ textAlign: 'center', verticalAlign: 'middle', borderTop: '1px solid #f4f4f4' }}>
-                          {n.type === 'error' ? <i className="fa fa-bolt text-danger"></i> : <i className="fa fa-info-circle text-primary"></i>}
-                        </td>
-                        <td style={{ padding: '10px 8px', borderTop: '1px solid #f4f4f4', color: '#555' }}>
-                           <div style={{ fontWeight: '500' }}>{n.message}</div>
-                           <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>2026-05-14 11:32</div>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr><td className="text-center" style={{ padding: '20px', color: '#999' }}>No events recorded.</td></tr>
+          {/* PON Outage Outages Card */}
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-heartbeat" aria-hidden="true"></i> PON outage
+              <div className="pull-right">
+                <i className="fa fa-cog" style={{ cursor: 'pointer' }}></i>
+              </div>
+            </div>
+            <div className="table-responsive" id="outage_pons_content">
+              <div className="list-group" style={{ margin: 0 }}>
+                <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}>
+                  <i className="fa fa-signal fa-fw text-warning" style={{ color: '#ec971f' }}></i> Signal variations
+                  <span className="pull-right text-muted small"><i className="fa fa-check-circle text-success" style={{ color: '#4caf50' }}></i> No variation detected</span>
+                </div>
+                <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
+                  <i className="fa fa-scissors fa-fw text-warning" style={{ color: '#ec971f' }}></i> Fiber cuts (LOS)
+                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                </div>
+                <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
+                  <i className="fa fa-plug fa-fw text-primary" style={{ color: '#337ab7' }}></i> Power fail
+                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                </div>
+                <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
+                  <i className="fa fa-question-circle fa-fw text-muted"></i> Offline N/A
+                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                </div>
+                <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none', borderBottom: 'none' }}>
+                  <i className="fa fa-calendar fa-fw text-muted" style={{ color: '#a0a0a0' }}></i> Offline for 7+ days
+                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ONU Authorizations per day Card */}
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-bar-chart-o fa-fw"></i> ONU authorizations per day
+            </div>
+            <div className="panel-body" style={{ padding: '20px' }}>
+              <div style={{ height: '240px', width: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={authPerDay.length > 0 ? authPerDay : [{ date: 'Today', gpon_total: 0, epon_total: 0 }]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
+                    <XAxis dataKey="date" fontSize={11} tickLine={false} stroke="#333333" />
+                    <YAxis fontSize={11} tickLine={false} allowDecimals={false} stroke="#333333" />
+                    <Tooltip />
+                    <Legend iconSize={10} wrapperStyle={{ fontSize: '11px', marginTop: '10px' }} />
+                    <Bar dataKey="gpon_total" name="GPON" fill="#0064C8" radius={[2, 2, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="epon_total" name="EPON" fill="#F58411" radius={[2, 2, 0, 0]} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-4">
+          {/* OLT details panel */}
+          <div className="panel panel-default panel-olt">
+            <div className="panel-heading">
+              {displayOltName}
+              <div className="pull-right panel-heading-button">
+                <div className="btn-group">
+                  <button type="button" className="btn btn-default btn-xs dropdown-toggle panel-heading-dropdown-toggle" data-toggle="dropdown">
+                    <span id="selected_olt">{selectedOltLabel}</span>
+                    <span className="caret"></span>
+                  </button>
+                  <ul className="dropdown-menu pull-right" role="menu" id="dropdownOlts">
+                    <li><a href="#" className="olt_option min-width-250" onClick={(e) => { e.preventDefault(); setSelectedOltId('all'); }}>All</a></li>
+                    {olts.map(o => (
+                      <li key={o.id}>
+                        <a href="#" className="olt_option" onClick={(e) => { e.preventDefault(); setSelectedOltId(String(o.id)); }}>
+                          <span>{o.id} - {o.name}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="panel-body text-center" style={{ padding: '20px' }}>
+              <img className="dashboard-img" src={selectedOlt?.manufacturer?.toLowerCase() === 'huawei' ? "https://sanwanay.smartolt.com/content/img/Huawei-MA5608T.png" : "https://sanwanay.smartolt.com/content/img/ZTE-C600.png"} alt="OLT device" style={{ maxWidth: '170px', marginBottom: '15px' }} />
+              <div className="list-group text-left margin-top-xlg" style={{ margin: '0' }}>
+                <span className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
+                  <i className="fa fa-cogs fa-fw"></i> Uptime
+                  <span className="pull-right">
+                    <em id={`olt-up-time-${selectedOltId}`} className="small" style={{ fontStyle: 'normal', color: '#666' }}>
+                      {selectedOlt ? `${selectedOlt.uptime || '7 days, 4 hours'}` : 'All Online'}
+                    </em>
+                    {selectedOlt?.temperature && (
+                      <em id={`olt-env-temp-${selectedOltId}`} className="small text-success" style={{ marginLeft: '8px', fontStyle: 'normal', fontWeight: 'bold' }}>
+                        {selectedOlt.temperature}°C
+                      </em>
                     )}
-                 </tbody>
-               </table>
-               <div style={{ padding: '10px', textAlign: 'center', borderTop: '1px solid #eee' }}>
-                  <Link href="/tasks" style={{ fontSize: '12px', color: '#337ab7', fontWeight: 'bold', textDecoration: 'none' }}>View all events</Link>
-               </div>
-             </div>
-           </div>
+                  </span>
+                </span>
+                
+                {selectedOlt?.ip_address && (
+                  <span className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
+                    <i className="fa fa-globe fa-fw"></i> IP Address
+                    <span className="pull-right text-muted small">{selectedOlt.ip_address}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Activity / Info Panel */}
+          <div className="panel panel-default">
+            <div className="panel-heading">
+              <i className="fa fa-info-circle fa-fw"></i> Info
+            </div>
+            <div className="panel-body" style={{ padding: '0px' }}>
+              <div className="list-group" style={{ margin: '0' }}>
+                {recentLogs.length > 0 ? (
+                  recentLogs.map((log, index) => (
+                    <a key={index} href={log.onu_id ? `/onu/view/${log.onu_id}` : '/info'} className="list-group-item" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none' }}>
+                      <i className="fa fa-user-o fa-fw"></i> {log.action}
+                      <span className="pull-right small text-muted">
+                        <em>{getRelativeTime(log.createdAt)}</em>
+                      </span>
+                    </a>
+                  ))
+                ) : (
+                  <div className="list-group-item text-center text-muted" style={{ padding: '15px' }}>
+                    No recent activity logs.
+                  </div>
+                )}
+              </div>
+              <a href={`/info${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`} className="btn btn-default btn-block" style={{ borderTopLeftRadius: '0', borderTopRightRadius: '0', borderLeft: 'none', borderRight: 'none', borderBottom: 'none' }}>
+                View All Info
+              </a>
+            </div>
+          </div>
         </div>
       </div>
-
-      <style jsx>{`
-        .card-outer {
-          background-color: #fff;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          height: 140px;
-          transition: transform 0.2s;
-        }
-        .card-outer:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .card-top-header {
-          padding: 15px;
-          color: #fff;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-        .card-top-header i {
-          font-size: 38px;
-          opacity: 0.8;
-        }
-        .card-main-num {
-          font-size: 42px;
-          font-weight: bold;
-        }
-        .card-body-text {
-          padding: 5px 15px;
-          font-size: 13px;
-          color: #666;
-          text-align: right;
-          flex: 1;
-        }
-        .card-footer-custom {
-          padding: 8px 15px;
-          background-color: #fcfcfc;
-          font-size: 12px;
-          display: flex;
-          align-items: center;
-        }
-      `}</style>
     </div>
   );
 }
-

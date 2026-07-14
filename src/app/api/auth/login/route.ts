@@ -5,10 +5,10 @@ import { cookies } from 'next/headers';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { identity, password } = body;
 
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: { email: identity }
     });
 
     if (!user || user.password !== password) {

@@ -35,7 +35,8 @@ export async function POST(request: Request) {
         vendor: body.vendor || body.manufacturer?.toLowerCase() || 'zte',
         manufacturer: body.manufacturer,
         hardware_version: body.hardwareVersion,
-        pon_types: body.ponTypes
+        pon_types: body.ponTypes,
+        iptv_module: body.iptv === true
       }
     });
 
@@ -62,6 +63,19 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
 
     const oltId = parseInt(id);
+
+    // First find all ONUs for this OLT to clean up their related records
+    const onus = await prisma.oNUConfigured.findMany({ 
+      where: { olt_id: oltId }, 
+      select: { id: true } 
+    });
+    const onuIds = onus.map(o => o.id);
+
+    if (onuIds.length > 0) {
+      await prisma.notification.deleteMany({ where: { onu_id: { in: onuIds } } });
+      await prisma.signalHistory.deleteMany({ where: { onu_id: { in: onuIds } } });
+      await prisma.statusHistory.deleteMany({ where: { onu_id: { in: onuIds } } });
+    }
 
     // Delete related records manually to avoid Foreign Key Constraint errors
     await prisma.oNUConfigured.deleteMany({ where: { olt_id: oltId } });

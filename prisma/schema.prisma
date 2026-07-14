@@ -23,6 +23,7 @@ model OLTDevice {
   timeout          Int                @default(10)
   signal_threshold Float?             @default(-27.0)
   manufacturer     String?            @default("ZTE")
+  iptv_module      Boolean          @default(false)
   hardware_version String?
   pon_types        String?            @default("GPON")
   cpu_load         Float?             @default(0)
@@ -92,7 +93,7 @@ model ONUConfigured {
   olt            OLTDevice     @relation(fields: [olt_id], references: [id])
   pon_port       String?       // Persistent Port
   onu_id         String?       // Persistent ONU ID on that port
-  vlan           Int
+  vlan           String        // Allow strings like "1000, 125"
   mode           String        // Bridge/Route
   pppoe_user     String?
   pppoe_pass     String?
@@ -140,16 +141,17 @@ model ODB {
 
 
 model SystemConfig {
-  id           Int     @id @default(1)
-  system_title String  @default("SmartOLT Clone")
-  timezone     String  @default("Asia/Jakarta")
-  allowed_ips  String?
-  language     String  @default("en")
-  smtp_host    String?
-  smtp_port    Int     @default(587)
-  smtp_user    String?
-  smtp_pass    String?
-  sms_api_key  String?
+  id                    Int     @id @default(1)
+  system_title          String  @default("SmartOLT Clone")
+  timezone              String  @default("Asia/Jakarta")
+  allowed_ips           String?
+  language              String  @default("en")
+  installers_time_limit Int     @default(7)
+  smtp_host             String?
+  smtp_port             Int     @default(587)
+  smtp_user             String?
+  smtp_pass             String?
+  sms_api_key           String?
 }
 
 model VPNTunnel {
@@ -160,15 +162,40 @@ model VPNTunnel {
 }
 
 model AuthPreset {
-  id         Int           @id @default(autoincrement())
-  name       String
-  sn_pattern String?       // e.g. ZTEG*
-  vlan       Int
-  mode       String        @default("route")
-  profile_id Int
-  profile    SpeedProfile  @relation(fields: [profile_id], references: [id])
-  olt_id     Int?
-  zone_id    Int?
+  id                          Int           @id @default(autoincrement())
+  name                        String
+  description                 String?
+  olt_id                      Int?
+  board                       String?
+  port                        String?
+  pon_type                    String?       @default("gpon")
+  sn_pattern                  String?
+  onu_type_id                 Int?
+  fallback_onu_type_id        Int?
+  is_default                  Boolean       @default(false)
+  mode                        String        @default("Routing")
+  channel_type                String?       @default("gpon")
+  custom_profile              Boolean       @default(false)
+  custom_template_id          Int?
+  use_svlan                   Boolean       @default(false)
+  svlan_id                    Int?
+  use_other_all_tls_vlan      Boolean       @default(false)
+  use_cvlan                   Boolean       @default(false)
+  cvlan_id                    Int?
+  vlan                        String?       // Replaces vlan_id / user_vlan
+  tag_transform_mode          String?       @default("default")
+  download_speed_id           Int?
+  upload_speed_id             Int?
+  profile_id                  Int?          // Fallback simple profile reference
+  profile                     SpeedProfile? @relation(fields: [profile_id], references: [id])
+  zone_id                     Int?          // location_id
+  odb_id                      Int?
+  odb_port                    String?
+  location_name               String?
+  description_pattern         String?
+  tr069_profile_id            Int?
+  mgmt_ip_mode                String?       @default("Inactive")
+  mgmt_ip_allow_remote_access Boolean       @default(false)
 }
 
 
@@ -233,3 +260,32 @@ model Notification {
   is_read   Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model ApiKey {
+  id                Int      @id @default(autoincrement())
+  key               String   @unique
+  access_type       String   @default("Read & Write") // Read & Write, Read-only
+  allowed_ips       String?
+  restriction_group String?
+  createdAt         DateTime @default(now())
+}
+
+model ApiLog {
+  id        Int      @id @default(autoincrement())
+  method    String
+  uri       String
+  status    Int
+  duration  Int
+  client_ip String
+  api_key   String?
+  createdAt DateTime @default(now())
+}
+
+model BillingInvoice {
+  id         Int      @id @default(autoincrement())
+  invoice_no String
+  date       DateTime @default(now())
+  amount     Float
+  status     String   @default("Paid") // Paid, Unpaid
+}
+

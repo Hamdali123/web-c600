@@ -1,52 +1,132 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 export default function SpeedProfilesPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSubTab, setActiveSubTab] = useState<'download' | 'upload'>('download');
+
+  // Sync / OLT fields
   const [olts, setOlts] = useState<any[]>([]);
-  const [form, setForm] = useState({ name: '', upload: '102400', download: '102400', olt_id: '' });
+  const [selectedOltId, setSelectedOltId] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Modals
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Forms
+  const [addForm, setAddForm] = useState({
+    name: '', direction: 'download', use_prefix_suffix: 'No',
+    type: 'Internet', speed: '50000', is_default: false
+  });
+  const [editForm, setEditForm] = useState({
+    id: 0, name: '', direction: 'download', use_prefix_suffix: 'No',
+    type: 'Internet', speed: '50000', is_default: false
+  });
 
   const fetchData = async () => {
     try {
       const res = await fetch('/api/settings/speed-profiles');
       const data = await res.json();
       setProfiles(Array.isArray(data) ? data : []);
-      
+
       const oltRes = await fetch('/api/settings/olt');
       const oltData = await oltRes.json();
       setOlts(Array.isArray(oltData) ? oltData : []);
-    } catch (e) {}
+    } catch (e) {
+      console.error(e);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Map to upload / download schema properties
+      const isDownload = addForm.direction === 'download';
+      const body = {
+        name: addForm.name,
+        download: isDownload ? parseInt(addForm.speed) : 0,
+        upload: !isDownload ? parseInt(addForm.speed) : 0
+      };
+
       const res = await fetch('/api/settings/speed-profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (data.success) {
-        setForm({ name: '', upload: '102400', download: '102400', olt_id: '' });
+        setAddForm({
+          name: '', direction: activeSubTab, use_prefix_suffix: 'No',
+          type: 'Internet', speed: '50000', is_default: false
+        });
+        setShowAddModal(false);
         fetchData();
       } else {
         alert("Error: " + data.error);
       }
-    } catch (e) { alert("Server error"); }
+    } catch (e) {
+      alert("Server error adding speed profile");
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const isDownload = editForm.direction === 'download';
+      const body = {
+        id: editForm.id,
+        name: editForm.name,
+        download: isDownload ? parseInt(editForm.speed) : 0,
+        upload: !isDownload ? parseInt(editForm.speed) : 0
+      };
+
+      // We should support PUT on speed-profiles api. Let's create put handler or do POST
+      const res = await fetch('/api/settings/speed-profiles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowEditModal(false);
+        fetchData();
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (e) {
+      alert("Server error editing speed profile");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this speed profile?")) return;
+    try {
+      const res = await fetch(`/api/settings/speed-profiles?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        fetchData();
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (e) {
+      alert("Server error deleting speed profile");
+    }
   };
 
   const handleSync = async () => {
-    if (!form.olt_id) return alert("Select an OLT first to sync profiles from it.");
+    if (!selectedOltId) return alert("Select an OLT first to sync profiles from it.");
     setIsSyncing(true);
     try {
-      const res = await fetch(`/api/settings/speed-profiles/sync?oltId=${form.olt_id}`, { method: 'POST' });
+      const res = await fetch(`/api/settings/speed-profiles/sync?oltId=${selectedOltId}`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         alert(`Successfully synced ${data.count} Speed Profiles!`);
@@ -54,100 +134,276 @@ export default function SpeedProfilesPage() {
       } else {
         alert("Sync failed: " + data.error);
       }
-    } catch (e) { alert("Server error during sync"); }
+    } catch (e) {
+      alert("Server error during sync");
+    }
     setIsSyncing(false);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this Speed Profile?")) return;
-    try {
-      await fetch(`/api/settings/speed-profiles?id=${id}`, { method: 'DELETE' });
-      fetchData();
-    } catch (e) {}
-  };
-
-  if (loading) return <div className="text-center" style={{ marginTop: '50px' }}><i className="fa fa-spinner fa-spin fa-3x"></i></div>;
+  // Filter profiles based on selected direction tab
+  const filteredProfiles = profiles.filter(p => {
+    if (activeSubTab === 'download') return p.download > 0;
+    return p.upload > 0;
+  });
 
   return (
-    <div>
-      <h3 style={{ marginTop: 0, fontWeight: 'bold' }}>Speed Profiles</h3>
-      <p className="text-muted small">Define bandwidth limits for your ONUs. You can manually create them or sync existing profiles from your OLT hardware.</p>
-      <hr style={{ borderColor: '#337ab7', borderWidth: '2px', width: '50px', marginLeft: 0, marginTop: '10px' }} />
+    <div className="container-fluid content-wrap">
+      <h3 style={{ marginTop: 0, fontWeight: 'bold' }}>
+        <i className="fa fa-tachometer"></i> Speed profiles
+      </h3>
+      <hr style={{ borderColor: '#337ab7', borderWidth: '2px', width: '50px', marginLeft: 0, marginTop: '10px', marginBottom: '25px' }} />
 
-      <div className="row">
-        <div className="col-md-4">
-          <div className="panel panel-default">
-            <div className="panel-heading" style={{ backgroundColor: '#2d323e', color: '#fff' }}><strong>Manage Profile</strong></div>
-            <div className="panel-body">
-              <form onSubmit={handleSave}>
-                <div className="form-group">
-                  <label className="small text-muted">Select OLT (Required for Sync)</label>
-                  <select className="form-control input-sm" value={form.olt_id} onChange={e => setForm({...form, olt_id: e.target.value})}>
-                    <option value="">Select OLT</option>
-                    {olts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
+      {/* Top Sync & Action Control Bar */}
+      <div className="row" style={{ marginBottom: '20px' }}>
+        <div className="col-md-3">
+          <select 
+            className="form-control input-sm" 
+            value={selectedOltId} 
+            onChange={e => setSelectedOltId(e.target.value)}
+          >
+            <option value="">Select OLT for Sync</option>
+            {olts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </div>
+        <div className="col-md-3">
+          <button 
+            type="button" 
+            className="btn btn-info btn-sm btn-block" 
+            onClick={handleSync}
+            disabled={isSyncing || !selectedOltId}
+          >
+            <i className={isSyncing ? "fa fa-spinner fa-spin" : "fa fa-refresh"}></i> Sync from OLT
+          </button>
+        </div>
+        <div className="col-md-6 text-right">
+          <button className="btn btn-success btn-sm" onClick={() => {
+            setAddForm({ ...addForm, direction: activeSubTab });
+            setShowAddModal(true);
+          }}>
+            <span className="fa fa-plus"></span> Add speed profile
+          </button>
+        </div>
+      </div>
+
+      {/* Sub Tabs */}
+      <ul className="nav nav-pills" style={{ marginBottom: '15px' }}>
+        <li className={activeSubTab === 'download' ? 'active' : ''}>
+          <a href="#" onClick={(e) => { e.preventDefault(); setActiveSubTab('download'); }}>Download</a>
+        </li>
+        <li className={activeSubTab === 'upload' ? 'active' : ''}>
+          <a href="#" onClick={(e) => { e.preventDefault(); setActiveSubTab('upload'); }}>Upload</a>
+        </li>
+      </ul>
+
+      {/* Table */}
+      <div className="panel panel-default border-0 shadow-sm">
+        <div className="panel-body" style={{ padding: 0 }}>
+          {loading ? (
+            <div className="text-center p-5"><i className="fa fa-spinner fa-spin fa-2x"></i></div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-striped table-hover" style={{ margin: 0, fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8f9fa' }}>
+                    <th>Name</th>
+                    <th>For</th>
+                    <th>Use prefix&amp;suffix</th>
+                    <th className="text-right">Speed</th>
+                    <th>Type</th>
+                    <th className="text-center">Default</th>
+                    <th className="text-center">ONUs</th>
+                    <th className="text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProfiles.map(p => {
+                    const speedVal = activeSubTab === 'download' ? p.download : p.upload;
+                    const speedDisplay = speedVal >= 102400 ? `${(speedVal / 1024).toFixed(0)} Mbps` : `${speedVal} kbps`;
+                    return (
+                      <tr key={p.id}>
+                        <td>
+                          <a 
+                            href="#" 
+                            style={{ color: '#337ab7', fontWeight: 'bold' }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setEditForm({
+                                id: p.id,
+                                name: p.name,
+                                direction: activeSubTab,
+                                use_prefix_suffix: 'No',
+                                type: 'Internet',
+                                speed: String(speedVal),
+                                is_default: false
+                              });
+                              setShowEditModal(true);
+                            }}
+                          >
+                            {p.name}
+                          </a>
+                        </td>
+                        <td>Any</td>
+                        <td>No</td>
+                        <td className="text-right" style={{ fontFamily: 'monospace' }}>{speedDisplay}</td>
+                        <td>Internet</td>
+                        <td className="text-center">
+                          <input type="checkbox" checked={false} readOnly />
+                        </td>
+                        <td className="text-center">
+                          <Link href={`/onu/configured?speed_profile_id=${p.id}&all=1`} style={{ color: '#337ab7' }}>
+                            {p._count?.onus || 0} ONUs
+                          </Link>
+                        </td>
+                        <td className="text-right">
+                          <button className="btn btn-danger btn-xs" onClick={() => handleDelete(p.id)}>
+                            <i className="fa fa-trash"></i> Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredProfiles.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="text-center text-muted" style={{ padding: '30px' }}>
+                        No {activeSubTab} speed profiles defined.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ADD MODAL */}
+      {showAddModal && (
+        <div className="modal fade in" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} role="dialog">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <form onSubmit={handleAddSubmit}>
+                <div className="modal-header">
+                  <button type="button" className="close" onClick={() => setShowAddModal(false)}>&times;</button>
+                  <h4 className="modal-title">Add speed profile</h4>
                 </div>
-
-                <div style={{ borderTop: '1px solid #eee', margin: '15px 0', paddingTop: '15px' }}>
+                <div className="modal-body">
                   <div className="form-group">
-                    <label className="small text-muted">Profile Name</label>
-                    <input type="text" className="form-control input-sm" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                    <label className="small text-muted">Profile name</label>
+                    <input type="text" className="form-control" placeholder="e.g. 50M, 100M" value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} required />
                   </div>
                   <div className="form-group">
-                    <label className="small text-muted">Upload (kbps)</label>
-                    <input type="number" className="form-control input-sm" value={form.upload} onChange={e => setForm({...form, upload: e.target.value})} />
+                    <label className="small text-muted">Direction</label>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline" style={{ marginRight: '15px' }}>
+                        <input type="radio" value="download" checked={addForm.direction === 'download'} onChange={e => setAddForm({ ...addForm, direction: e.target.value })} /> Download
+                      </label>
+                      <label className="radio-inline">
+                        <input type="radio" value="upload" checked={addForm.direction === 'upload'} onChange={e => setAddForm({ ...addForm, direction: e.target.value })} /> Upload
+                      </label>
+                    </div>
                   </div>
                   <div className="form-group">
-                    <label className="small text-muted">Download (kbps)</label>
-                    <input type="number" className="form-control input-sm" value={form.download} onChange={e => setForm({...form, download: e.target.value})} />
+                    <label className="small text-muted">Use suffix and prefix</label>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline" style={{ marginRight: '15px' }}>
+                        <input type="radio" value="Yes" checked={addForm.use_prefix_suffix === 'Yes'} onChange={e => setAddForm({ ...addForm, use_prefix_suffix: e.target.value })} /> Yes
+                      </label>
+                      <label className="radio-inline">
+                        <input type="radio" value="No" checked={addForm.use_prefix_suffix === 'No'} onChange={e => setAddForm({ ...addForm, use_prefix_suffix: e.target.value })} /> No
+                      </label>
+                    </div>
                   </div>
-                  <button type="submit" className="btn btn-primary btn-sm btn-block">Add Manually</button>
+                  <div className="form-group">
+                    <label className="small text-muted">Type</label>
+                    <select className="form-control" value={addForm.type} onChange={e => setAddForm({ ...addForm, type: e.target.value })}>
+                      <option value="Internet">Internet</option>
+                      <option value="IPTV">IPTV</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="small text-muted">Speed (in kbps)</label>
+                    <input type="number" className="form-control" placeholder="e.g. 51200" value={addForm.speed} onChange={e => setAddForm({ ...addForm, speed: e.target.value })} required />
+                  </div>
+                  <div className="checkbox">
+                    <label>
+                      <input type="checkbox" checked={addForm.is_default} onChange={e => setAddForm({ ...addForm, is_default: e.target.checked })} /> Default {addForm.direction} speed for new ONUs
+                    </label>
+                  </div>
                 </div>
-
-                <div className="text-center" style={{ margin: '10px 0' }}>- OR -</div>
-                
-                <button 
-                  type="button" 
-                  className="btn btn-info btn-sm btn-block" 
-                  onClick={handleSync}
-                  disabled={isSyncing || !form.olt_id}
-                >
-                  <i className={isSyncing ? "fa fa-spinner fa-spin" : "fa fa-refresh"}></i> Sync from OLT
-                </button>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-default" onClick={() => setShowAddModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Save Profile</button>
+                </div>
               </form>
             </div>
           </div>
         </div>
+      )}
 
-        <div className="col-md-8">
-          <div className="panel panel-default">
-            <div className="table-responsive">
-              <table className="table table-striped table-hover" style={{ fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f9f9f9' }}>
-                    <th>Name</th>
-                    <th>Upload</th>
-                    <th>Download</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {profiles.map(p => (
-                    <tr key={p.id}>
-                      <td><strong>{p.name}</strong></td>
-                      <td>{(p.upload / 1024).toFixed(0)} Mbps</td>
-                      <td>{(p.download / 1024).toFixed(0)} Mbps</td>
-                      <td className="text-right">
-                        <button className="btn btn-danger btn-xs" onClick={() => handleDelete(p.id)}><i className="fa fa-trash"></i></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* EDIT MODAL */}
+      {showEditModal && (
+        <div className="modal fade in" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} role="dialog">
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <form onSubmit={handleEditSubmit}>
+                <div className="modal-header">
+                  <button type="button" className="close" onClick={() => setShowEditModal(false)}>&times;</button>
+                  <h4 className="modal-title">Edit speed profile</h4>
+                </div>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label className="small text-muted">Profile name</label>
+                    <input type="text" className="form-control" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} required />
+                  </div>
+                  <div className="form-group">
+                    <label className="small text-muted">Direction</label>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline" style={{ marginRight: '15px' }}>
+                        <input type="radio" value="download" checked={editForm.direction === 'download'} onChange={e => setEditForm({ ...editForm, direction: e.target.value })} /> Download
+                      </label>
+                      <label className="radio-inline">
+                        <input type="radio" value="upload" checked={editForm.direction === 'upload'} onChange={e => setEditForm({ ...editForm, direction: e.target.value })} /> Upload
+                      </label>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="small text-muted">Use suffix and prefix</label>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline" style={{ marginRight: '15px' }}>
+                        <input type="radio" value="Yes" checked={editForm.use_prefix_suffix === 'Yes'} onChange={e => setEditForm({ ...editForm, use_prefix_suffix: e.target.value })} /> Yes
+                      </label>
+                      <label className="radio-inline">
+                        <input type="radio" value="No" checked={editForm.use_prefix_suffix === 'No'} onChange={e => setEditForm({ ...editForm, use_prefix_suffix: e.target.value })} /> No
+                      </label>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="small text-muted">Type</label>
+                    <select className="form-control" value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value })}>
+                      <option value="Internet">Internet</option>
+                      <option value="IPTV">IPTV</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="small text-muted">Speed (in kbps)</label>
+                    <input type="number" className="form-control" value={editForm.speed} onChange={e => setEditForm({ ...editForm, speed: e.target.value })} required />
+                  </div>
+                  <div className="checkbox">
+                    <label>
+                      <input type="checkbox" checked={editForm.is_default} onChange={e => setEditForm({ ...editForm, is_default: e.target.checked })} /> Default {editForm.direction} speed for new ONUs
+                    </label>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-default" onClick={() => setShowEditModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Update Profile</button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }

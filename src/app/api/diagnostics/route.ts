@@ -6,6 +6,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const status = searchParams.get('status');
+    const reason = searchParams.get('reason');
     const oltId = searchParams.get('olt');
     const zoneId = searchParams.get('zone');
     const odbId = searchParams.get('odb');
@@ -25,6 +26,23 @@ export async function GET(request: Request) {
       whereClause.status = status;
     }
 
+    if (reason && reason !== 'Any') {
+       if (reason === 'LOS' || reason === 'los') {
+           whereClause.OR = [
+               { offline_reason: { contains: 'los' } },
+               { offline_reason: { contains: 'LOS' } }
+           ];
+       } else if (reason === 'Power Failed' || reason === 'pwrfail') {
+           whereClause.OR = [
+               { offline_reason: { contains: 'power' } },
+               { offline_reason: { contains: 'dyinggasp' } },
+               { offline_reason: { contains: 'Power Failed' } }
+           ];
+       } else {
+           whereClause.offline_reason = reason;
+       }
+    }
+
     if (oltId && oltId !== 'Any') {
       whereClause.olt_id = parseInt(oltId);
     }
@@ -41,8 +59,15 @@ export async function GET(request: Request) {
       whereClause.onu_type_id = parseInt(onuType);
     }
 
-    // Signal filtering logic can be added here if needed
-    // e.g., whereClause.signal = { lt: -27 } for critical
+    if (signalFilter && signalFilter !== 'Any') {
+      if (signalFilter === 'good') {
+        whereClause.signal = { gt: -25 };
+      } else if (signalFilter === 'warning') {
+        whereClause.signal = { lte: -25, gt: -28 };
+      } else if (signalFilter === 'critical') {
+        whereClause.signal = { lte: -28 };
+      }
+    }
 
     const onus = await prisma.oNUConfigured.findMany({
       where: whereClause,

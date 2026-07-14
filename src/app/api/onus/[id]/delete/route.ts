@@ -28,12 +28,21 @@ export async function DELETE(
     };
 
     // 1. Delete from physical OLT
-    await deleteOnu(creds, {
-      portInfo: onu.pon_port || '',
-      onuId: onu.onu_id || ''
-    });
+    try {
+      await deleteOnu(creds, {
+        portInfo: onu.pon_port || '',
+        onuId: onu.onu_id || ''
+      });
+    } catch (e) {
+      console.warn("Failed to delete from physical OLT (offline or timeout). Proceeding with database cleanup.", e);
+    }
 
-    // 2. Delete from local DB
+    // 2. Clean up associated history and notifications to prevent Foreign Key Constraint errors
+    await prisma.notification.deleteMany({ where: { onu_id: onu.id } });
+    await prisma.signalHistory.deleteMany({ where: { onu_id: onu.id } });
+    await prisma.statusHistory.deleteMany({ where: { onu_id: onu.id } });
+
+    // 3. Delete from local DB
     await prisma.oNUConfigured.delete({
       where: { id: onu.id }
     });

@@ -1,14 +1,9 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f1f2f7;
+  --foreground: #333333;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
 
 html {
   height: 100%;
@@ -22,8 +17,6 @@ body {
 
 body {
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
@@ -42,8 +35,368 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+
+
+/* Custom Panel Colors matching Production SmartOLT exactly */
+.panel {
+  border-radius: 10px !important;
+}
+.panel-heading {
+  border-radius: 9px 9px 0 0 !important;
+}
+.panel-footer {
+  border-radius: 0 0 9px 9px !important;
+}
+
+.panel-default {
+  border-color: #eef2f6 !important;
+}
+.panel-default > .panel-heading {
+  background-color: #f5f5f5 !important;
+  border-color: #ddd !important;
+  color: #333333 !important;
+}
+
+.panel-primary {
+  border-color: #eef2f6 !important;
+}
+.panel-primary .panel-heading {
+  background-color: #0064c8 !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+.panel-primary a {
+  color: #0064c8 !important;
+}
+.panel-primary a:hover {
+  color: #004b96 !important;
+}
+
+.panel-green {
+  border-color: #eef2f6 !important;
+}
+.panel-green .panel-heading {
+  background-color: #4db14b !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+.panel-green a {
+  color: #4db14b !important;
+}
+.panel-green a:hover {
+  color: #449842 !important;
+}
+
+.panel-red {
+  border-color: #eef2f6 !important;
+}
+.panel-red .panel-heading {
+  background-color: #4c4b4b !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+.panel-red a {
+  color: #4c4b4b !important;
+}
+.panel-red a:hover {
+  color: #333333 !important;
+}
+
+.panel-yellow {
+  border-color: #eef2f6 !important;
+}
+.panel-yellow .panel-heading {
+  background-color: #f7a127 !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+.panel-yellow a {
+  color: #f7a127 !important;
+}
+.panel-yellow a:hover {
+  color: #df8a13 !important;
+}
+
+/* Reset panel-footer backgrounds to white/light grey */
+.panel-footer {
+  background-color: #ffffff !important;
+  border-top: 1px solid #eef2f6 !important;
+}
+
+/* Hover fixes for panel headings */
+.panel-heading a:hover {
+  text-decoration: none !important;
+}
+
+/* Base Font Override & Authentic Size */
+body, html {
+  font-family: "Source Sans Pro", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  color: var(--foreground) !important;
+  font-size: 15px !important;
+}
+
+/* Authentic SmartOLT Container Width */
+@media (min-width: 1200px) {
+  .container {
+    width: 1366px !important;
+    max-width: 100% !important;
   }
+}
+
+/* Navbar Background & Styling */
+.default-menu {
+  background-image: url('/vendor/bootstrap/img/smartolt_bg.jpg') !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+  background-position: center !important;
+  border-bottom: none !important;
+}
+.default-menu .navbar-brand {
+  color: #ffffff !important;
+  font-weight: bold;
+  font-size: 20px !important;
+  padding: 18px 15px !important;
+  height: auto !important;
+}
+.default-menu .navbar-nav > li > a {
+  color: #ffffff !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  padding: 18px 16px !important;
+}
+.default-menu .navbar-nav > li > a:hover,
+.default-menu .navbar-nav > li > a:focus {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+.default-menu .navbar-nav > .open > a,
+.default-menu .navbar-nav > .open > a:hover,
+.default-menu .navbar-nav > .open > a:focus {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+/* Buttons Theme Mapping - Authentic SmartOLT */
+.btn-primary {
+  background-color: #337ab7 !important;
+  border-color: #2e6da4 !important;
+  color: #ffffff !important;
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+  background-color: #286090 !important;
+  border-color: #204d74 !important;
+  color: #ffffff !important;
+}
+
+.btn-success {
+  background-color: #5cb85c !important;
+  border-color: #4cae4c !important;
+  color: #ffffff !important;
+}
+.btn-success:hover,
+.btn-success:focus,
+.btn-success:active {
+  background-color: #449d44 !important;
+  border-color: #398439 !important;
+  color: #ffffff !important;
+}
+
+.btn-danger {
+  background-color: #d9534f !important;
+  border-color: #d43f3a !important;
+  color: #ffffff !important;
+}
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active {
+  background-color: #c9302c !important;
+  border-color: #ac2925 !important;
+  color: #ffffff !important;
+}
+
+/* --- DARK MODE OVERRIDES --- */
+body.dark-mode {
+  background-color: #0b1120;
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 100px 100px;
+  color: #e2e8f0;
+}
+
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6 {
+  color: #ffffff;
+}
+
+body.dark-mode .default-menu {
+  background: #090e1a !important;
+  border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+}
+
+body.dark-mode .panel {
+  background-color: #2D3748;
+  border: none !important;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+body.dark-mode .panel-heading {
+  background-color: #374151 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+  color: #f8fafc !important;
+}
+
+body.dark-mode .panel-body {
+  background-color: #2D3748 !important;
+}
+
+body.dark-mode .panel-footer {
+  background-color: #1a202c !important;
+  border-top: 1px solid rgba(255,255,255,0.05) !important;
+  color: #a0aec0;
+}
+
+/* Top Stats Cards Dark Mode Overrides */
+body.dark-mode .panel-primary .panel-heading { background-color: #0073B7 !important; border-bottom: none !important; }
+body.dark-mode .panel-primary .panel-footer { background-color: #00609a !important; border-top: none !important; color: white !important; }
+body.dark-mode .panel-primary a { color: white !important; }
+body.dark-mode .panel-primary .panel-footer a { color: white !important; }
+
+body.dark-mode .panel-green .panel-heading { background-color: #00A65A !important; border-bottom: none !important; }
+body.dark-mode .panel-green .panel-footer { background-color: #008d4c !important; border-top: none !important; color: white !important; }
+body.dark-mode .panel-green a { color: white !important; }
+body.dark-mode .panel-green .panel-footer a { color: white !important; }
+
+body.dark-mode .panel-red .panel-heading { background-color: #555555 !important; border-bottom: none !important; }
+body.dark-mode .panel-red .panel-footer { background-color: #444444 !important; border-top: none !important; color: white !important; }
+body.dark-mode .panel-red a { color: white !important; }
+body.dark-mode .panel-red .panel-footer a { color: white !important; }
+
+body.dark-mode .panel-yellow .panel-heading { background-color: #F39C12 !important; border-bottom: none !important; }
+body.dark-mode .panel-yellow .panel-footer { background-color: #d8890d !important; border-top: none !important; color: white !important; }
+body.dark-mode .panel-yellow a { color: white !important; }
+body.dark-mode .panel-yellow .panel-footer a { color: white !important; }
+
+/* List Group Dark Mode */
+body.dark-mode .list-group-item {
+  background-color: #2D3748 !important;
+  border-color: rgba(255,255,255,0.05) !important;
+  color: #e2e8f0 !important;
+}
+body.dark-mode a.list-group-item:hover, 
+body.dark-mode a.list-group-item:focus {
+  background-color: #4A5568 !important;
+}
+
+body.dark-mode .dropdown-menu {
+  background-color: #2D3748;
+}
+body.dark-mode .dropdown-menu > li > a {
+  color: #e2e8f0;
+}
+body.dark-mode .dropdown-menu > li > a:hover {
+  background-color: #4A5568;
+  color: #ffffff;
+}
+
+body.dark-mode .btn-default {
+  background-color: #4A5568 !important;
+  border-color: #4A5568 !important;
+  color: white !important;
+}
+body.dark-mode .btn-default:hover {
+  background-color: #2D3748 !important;
+}
+
+/* Recharts Tooltip */
+body.dark-mode .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: #e2e8f0 !important;
+}
+
+/* Modals */
+body.dark-mode .modal-content {
+  background-color: #2D3748;
+  color: #e2e8f0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+body.dark-mode .modal-header {
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+body.dark-mode .modal-footer {
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Form Controls */
+body.dark-mode .form-control {
+  background-color: #1A202C;
+  color: #e2e8f0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+body.dark-mode .form-control[disabled], body.dark-mode .form-control[readonly] {
+  background-color: #4A5568;
+  color: #CBD5E0;
+}
+
+/* Tables */
+body.dark-mode .table > thead > tr > th,
+body.dark-mode .table > tbody > tr > th,
+body.dark-mode .table > tfoot > tr > th,
+body.dark-mode .table > thead > tr > td,
+body.dark-mode .table > tbody > tr > td,
+body.dark-mode .table > tfoot > tr > td {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  color: #e2e8f0;
+}
+body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(255,255,255,0.02);
+}
+body.dark-mode .table-hover > tbody > tr:hover {
+  background-color: rgba(255,255,255,0.05);
+}
+
+/* SmartOLT Utility Classes */
+.margin-left { margin-left: 10px !important; }
+.margin-right { margin-right: 10px !important; }
+.margin-top { margin-top: 15px !important; }
+.margin-bottom { margin-bottom: 15px !important; }
+
+.input-50 { width: 50px !important; display: inline-block; }
+.input-100 { width: 100px !important; display: inline-block; }
+.input-150 { width: 150px !important; display: inline-block; }
+.input-200 { width: 200px !important; display: inline-block; }
+.input-220 { width: 220px !important; display: inline-block; }
+.input-250 { width: 250px !important; display: inline-block; }
+.input-300 { width: 300px !important; display: inline-block; }
+
+.tasks-buttons-container .btn {
+  margin-right: 5px;
+  margin-bottom: 5px;
+}
+
+
+/* SmartOLT Table Styling - Remove Horizontal Borders but keep Striped */
+.table > tbody > tr > td, 
+.table > tbody > tr > th, 
+.table > tfoot > tr > td, 
+.table > tfoot > tr > th, 
+.table > thead > tr > td, 
+.table > thead > tr > th {
+    border-top: none !important;
+}
+
+.table > thead > tr > th {
+    border-bottom: 1px solid #ddd !important; /* Optional: Keep header bottom border */
+}
+
+/* Ensure table-striped has correct alternating colors */
+.table-striped > tbody > tr:nth-of-type(odd) {
+    background-color: #f9f9f9 !important;
+}
+.table-striped > tbody > tr:nth-of-type(even) {
+    background-color: #ffffff !important;
 }

@@ -16,6 +16,7 @@ export default function DiagnosticsPage() {
     onuType: 'Any',
     ponType: 'Any',
     status: 'Any',
+    reason: 'Any',
     signal: 'Any'
   });
 
@@ -28,7 +29,7 @@ export default function DiagnosticsPage() {
 
   const fetchMasterData = async () => {
     try {
-      const res = await fetch('/api/settings/master'); // Need to create this or individual ones
+      const res = await fetch('/api/settings/master');
       const data = await res.json();
       setMasterData(data);
     } catch (e) {
@@ -39,7 +40,6 @@ export default function DiagnosticsPage() {
   const fetchOnus = async () => {
     setLoading(true);
     try {
-      // Construct query string
       const q = new URLSearchParams();
       Object.entries(filters).forEach(([k, v]) => {
         if (v !== 'Any' && v !== '') q.set(k, v);
@@ -56,8 +56,11 @@ export default function DiagnosticsPage() {
 
   useEffect(() => {
     fetchMasterData();
-    fetchOnus();
   }, []);
+
+  useEffect(() => {
+    fetchOnus();
+  }, [filters]);
 
   const handleRefresh = () => fetchOnus();
 
@@ -78,6 +81,16 @@ export default function DiagnosticsPage() {
         <div style={{ width: '4px', height: '14px', backgroundColor: val !== null && val > -20 ? color : '#eee' }}></div>
       </div>
     );
+  };
+
+  const getStatusIcon = (status: string, reason: string | null) => {
+    if (status === 'Offline') {
+      const r = reason ? reason.toLowerCase() : '';
+      if (r.includes('los')) return <i className="fa fa-chain-broken fa-md text-danger"></i>;
+      if (r.includes('power') || r.includes('dyinggasp')) return <i className="fa fa-plug fa-md text-muted"></i>;
+      return <i className="fa fa-globe fa-md text-muted"></i>;
+    }
+    return <i className="fa fa-globe fa-md text-success"></i>;
   };
 
   return (
@@ -153,21 +166,22 @@ export default function DiagnosticsPage() {
                 <option>EPON</option>
               </select>
             </div>
-            <div className="col-md-2">
-              <label className="small text-muted">Status</label>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                <button className={`btn btn-default btn-xs ${filters.status === 'Online' ? 'active' : ''}`} onClick={() => setFilters({...filters, status: 'Online'})}><i className="fa fa-globe text-success"></i></button>
-                <button className={`btn btn-default btn-xs ${filters.status === 'Offline' ? 'active' : ''}`} onClick={() => setFilters({...filters, status: 'Offline'})}><i className="fa fa-times-circle text-danger"></i></button>
-                <button className="btn btn-default btn-xs" onClick={() => setFilters({...filters, status: 'Any'})}>Clear</button>
-              </div>
+            <div className="col-md-3 pon-type-filter">
+              <label className="small text-muted" style={{ display: 'block' }}>Status</label>
+              <ul className="pagination" style={{ margin: 0 }}>
+                <li className={filters.status === 'Online' && filters.reason === 'Any' ? "status-filter active" : "status-filter"} onClick={() => setFilters({...filters, status: filters.status === 'Online' && filters.reason === 'Any' ? 'Any' : 'Online', reason: 'Any'})} title="Online"><span><i className='fa fa-globe fa-sm text-green'></i></span></li>
+                <li className={filters.status === 'Offline' && filters.reason === 'Power Failed' ? "status-filter active" : "status-filter"} onClick={() => setFilters({...filters, status: filters.status === 'Offline' && filters.reason === 'Power Failed' ? 'Any' : 'Offline', reason: filters.status === 'Offline' && filters.reason === 'Power Failed' ? 'Any' : 'Power Failed'})} title="Power Fail"><span><i className='fa fa-plug fa-sm text-grey'></i></span></li>
+                <li className={filters.status === 'Offline' && filters.reason === 'LOS' ? "status-filter active" : "status-filter"} onClick={() => setFilters({...filters, status: filters.status === 'Offline' && filters.reason === 'LOS' ? 'Any' : 'Offline', reason: filters.status === 'Offline' && filters.reason === 'LOS' ? 'Any' : 'LOS'})} title="Loss of Signal"><span><i className='fa fa-chain-broken fa-sm text-red'></i></span></li>
+                <li className={filters.status === 'Offline' && filters.reason === 'Any' ? "status-filter active" : "status-filter"} onClick={() => setFilters({...filters, status: filters.status === 'Offline' && filters.reason === 'Any' ? 'Any' : 'Offline', reason: 'Any'})} title="Offline"><span><i className='fa fa-globe fa-sm text-grey'></i></span></li>
+              </ul>
             </div>
-            <div className="col-md-2">
-              <label className="small text-muted">Signal</label>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                <button className="btn btn-default btn-xs" title="Good"><i className="fa fa-signal text-success"></i></button>
-                <button className="btn btn-default btn-xs" title="Warning"><i className="fa fa-signal text-warning"></i></button>
-                <button className="btn btn-default btn-xs" title="Critical"><i className="fa fa-signal text-danger"></i></button>
-              </div>
+            <div className="col-md-2 pon-type-filter">
+              <label className="small text-muted" style={{ display: 'block' }}>Signal</label>
+              <ul className="pagination" style={{ margin: 0 }}>
+                <li className={filters.signal === 'good' ? "signal-filter active" : "signal-filter"} onClick={() => setFilters({...filters, signal: filters.signal === 'good' ? 'Any' : 'good'})} title="Good"><span><i className='fa fa-signal fa-sm text-green'></i></span></li>
+                <li className={filters.signal === 'warning' ? "signal-filter active" : "signal-filter"} onClick={() => setFilters({...filters, signal: filters.signal === 'warning' ? 'Any' : 'warning'})} title="Warning"><span><i className='fa fa-signal fa-sm' style={{color:'darkorange'}}></i></span></li>
+                <li className={filters.signal === 'critical' ? "signal-filter active" : "signal-filter"} onClick={() => setFilters({...filters, signal: filters.signal === 'critical' ? 'Any' : 'critical'})} title="Critical"><span><i className='fa fa-signal fa-sm' style={{color:'red'}}></i></span></li>
+              </ul>
             </div>
           </div>
         </div>
@@ -198,7 +212,7 @@ export default function DiagnosticsPage() {
               ) : onus.map(onu => (
                 <tr key={onu.id}>
                   <td>
-                    <i className={`fa ${onu.status === 'Online' ? 'fa-globe text-success' : 'fa-times-circle text-danger'}`}></i>
+                    {getStatusIcon(onu.status || '', onu.offline_reason)}
                   </td>
                   <td>{renderSignalBars(onu.signal)}</td>
                   <td style={{ color: getSignalColor(onu.signal), fontWeight: 'bold' }}>

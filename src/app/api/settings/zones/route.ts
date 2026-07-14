@@ -24,6 +24,20 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, name } = body;
+    const zone = await prisma.zone.update({
+      where: { id: parseInt(id) },
+      data: { name }
+    });
+    return NextResponse.json({ success: true, zone });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
