@@ -9,8 +9,8 @@ async function test() {
       shellPrompt: /#\s*$/,
       loginPrompt: /Username:/i,
       passwordPrompt: /Password:/i,
-      username: 'admin',
-      password: 'admin', 
+      username: 'sanwanay',
+      password: '1Sampai9', 
       timeout: 10000,
     });
     

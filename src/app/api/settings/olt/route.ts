@@ -17,6 +17,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
+    const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipRegex.test(body.ipAddress)) {
+      return NextResponse.json({ success: false, error: "Invalid IP address format." }, { status: 400 });
+    }
+
     // Save to local SQLite via Prisma
     const newOlt = await prisma.oLTDevice.create({
       data: {

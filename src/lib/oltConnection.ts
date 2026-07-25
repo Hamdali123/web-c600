@@ -116,6 +116,80 @@ export async function executeOltCommand(creds: OltCredentials, command: string):
   }
 }
 
+export async function executeOltCommandBatch(creds: OltCredentials, commands: string[]): Promise<string[]> {
+  const release = await acquireLock();
+  try {
+    if (creds.protocol === 'ssh') {
+      const Client = require('ssh2').Client;
+      return new Promise((resolve, reject) => {
+        const conn = new Client();
+        conn.on('ready', () => {
+          conn.shell((err: any, stream: any) => {
+            if (err) { conn.end(); return reject(err); }
+            const outputs: string[] = [];
+            let currentLine = 0;
+            let currentOutput = '';
+            
+            stream.on('close', () => { conn.end(); resolve(outputs); }).on('data', (data: any) => {
+              const chunk = data.toString();
+              currentOutput += chunk;
+              if (chunk.includes('#') || chunk.includes('>')) {
+                 if (currentLine > 0) outputs.push(currentOutput);
+                 currentOutput = '';
+                 if (currentLine < commands.length) {
+                   stream.write(commands[currentLine] + '\n');
+                   currentLine++;
+                 } else {
+                   setTimeout(() => stream.end('exit\n'), 500);
+                 }
+              }
+            });
+            stream.write('\n'); // Trigger prompt
+          });
+        }).on('error', reject).connect({
+          host: creds.ip, port: creds.port || 22, username: creds.username, password: creds.password, readyTimeout: 10000
+        });
+      });
+    } else {
+       const Telnet = require('telnet-client').Telnet;
+       const connection = new Telnet();
+       try {
+        await connection.connect({
+           host: creds.ip, port: creds.port || 23, timeout: 180000, negotiationMandatory: false, disableLogon: true
+        });
+       const promptRegex = /[#>]\s*$/i;
+       try {
+           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+       } catch (e) {
+           await connection.send('\n', { waitFor: /name[: ]*$|username[: ]*$/i, timeout: 5000 }).catch(() => null);
+           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+       }
+       await connection.send(creds.password || '', { waitFor: promptRegex, timeout: 10000 });
+       
+       try {
+         await connection.send('terminal length 0', { waitFor: promptRegex, timeout: 5000 });
+       } catch (e) {
+         try { await connection.send('length 0', { waitFor: promptRegex, timeout: 5000 }); } catch (err) {}
+       }
+
+       const outputs: string[] = [];
+       for (const cmd of commands) {
+           const out = await connection.send(cmd, { waitFor: promptRegex, timeout: 60000 });
+           outputs.push(out);
+       }
+       await connection.end();
+       return outputs;
+
+       } catch (error: any) {
+           try { await connection.destroy(); } catch (e) {}
+           throw new Error(`Telnet connection failed: ${error.message}`);
+       }
+    }
+  } finally {
+    release();
+  }
+}
+
 export async function authorizeOnu(creds: OltCredentials, params: {
     portInfo: string;
     onuId: string;
@@ -257,33 +331,62 @@ export async function getVlans(creds: OltCredentials) {
   }));
 }
 
+export function parseOltAttenuation(output: string) {
+    const lines = output.split('\n');
+    let onuRx = '-40.0';
+    let onuTx = '-40.0';
+    let oltRx = '-40.0';
+    let oltTx = '-40.0';
+
+    for (const line of lines) {
+        if (line.includes('ONU(')) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                onuRx = parts[1];
+                onuTx = parts[2];
+            }
+        } else if (line.includes('OLT(')) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 3) {
+                oltRx = parts[1];
+                oltTx = parts[2];
+            }
+        }
+    }
+    
+    return {
+        onu_rx_power: onuRx !== 'N/A' ? onuRx : '-40.0',
+        onu_tx_power: onuTx !== 'N/A' ? onuTx : '-40.0',
+        olt_rx_power: oltRx !== 'N/A' ? oltRx : '-40.0',
+        olt_tx_power: oltTx !== 'N/A' ? oltTx : '-40.0'
+    };
+}
+
 export async function readOltAttenuation(creds: OltCredentials, onuInterface: string) {
     if (creds.vendor === 'zte') {
-        const output = await executeOltCommand(creds, `show pon power onu-rx ${onuInterface}`);
-        // ZTE Example: gpon_onu-1/2/1:2     -5.315(dbm)
-        const rxMatch = output.match(/([-]?\d+\.\d+)\(dbm\)/i);
-        const txOutput = await executeOltCommand(creds, `show pon power olt-rx ${onuInterface}`).catch(() => '');
-        const txMatch = txOutput.match(/([-]?\d+\.\d+)\(dbm\)/i);
-        
-        return {
-            onu_rx_power: rxMatch ? rxMatch[1] : '-40.0',
-            onu_tx_power: txMatch ? txMatch[1] : '-40.0'
-        };
+        const output = await executeOltCommand(creds, `show pon power attenuation ${onuInterface}`);
+        return parseOltAttenuation(output);
     } else {
-        // Huawei logic
-        return { onu_rx_power: '-40.0', onu_tx_power: '-40.0' };
+        return { onu_rx_power: '-40.0', onu_tx_power: '-40.0', olt_rx_power: '-40.0', olt_tx_power: '-40.0' };
     }
+}
+
+export function parseOnuDetails(output: string) {
+    const distanceMatch = output.match(/distance.*?(\d+)/i);
+    const versionMatch = output.match(/version.*?([A-Za-z0-9.]+)/i);
+    return {
+        distance: distanceMatch ? distanceMatch[1] + 'm' : 'N/A',
+        firmware: versionMatch ? versionMatch[1] : 'N/A',
+        uptime: null,
+        voip_status: 'Down',
+        tv_status: 'Down'
+    };
 }
 
 export async function getOnuDetails(creds: OltCredentials, onuInterface: string, onuId: string) {
     if (creds.vendor === 'zte') {
         const output = await executeOltCommand(creds, `show gpon onu detail-info ${onuInterface}`);
-        const distanceMatch = output.match(/distance.*?(\d+)/i);
-        const versionMatch = output.match(/version.*?([A-Za-z0-9.]+)/i);
-        return {
-            distance: distanceMatch ? distanceMatch[1] + 'm' : 'N/A',
-            firmware: versionMatch ? versionMatch[1] : 'N/A'
-        };
+        return parseOnuDetails(output);
     } else {
         return { distance: 'N/A', firmware: 'N/A' };
     }

@@ -15,7 +15,7 @@ export async function POST(
       where: { id: parseInt(id) },
       data: { 
         name: name,
-        vlan: vlan ? parseInt(vlan) : undefined,
+        vlan: vlan ? vlan.toString() : undefined,
         profile_id: profileId ? parseInt(profileId) : undefined,
         external_id: externalId,
         address: address,

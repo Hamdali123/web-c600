@@ -117,7 +117,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <li><a href="/onu_types/listing">ONU types</a></li>
                   <li><a href="/speed_profiles">Speed profiles</a></li>
                   <li><a href="/olt">OLTs</a></li>
-                  <li><a href="/uplink_ports">Uplink ports</a></li>
                   <li><a href="/system_config">VPN & TR069</a></li>
                   <li><a href="/onu_authorization_presets/listing">Authorization presets</a></li>
                   <li><a href="/general">General</a></li>

@@ -1,107 +1,147 @@
+"use strict";
 "use client";
 
-import React, { useState, useEffect, useRef, use } from 'react';
+import React, { useEffect, useRef, useState, use } from 'react';
+import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
+import 'xterm/css/xterm.css';
+import Link from 'next/link';
 
 export default function OltCliPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const id = resolvedParams.id;
-  const [command, setCommand] = useState('');
-  const [output, setOutput] = useState<string>('Welcome to SmartOLT Terminal...\nType a command and press Enter.');
-  const [loading, setLoading] = useState(false);
-  const outputEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    outputEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<string>('Initializing...');
+  const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [output]);
+    if (!terminalRef.current) return;
 
-  const executeCommand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!command.trim()) return;
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: 14,
+      logLevel: 'off',
+      theme: {
+        background: '#1e1e1e',
+        foreground: '#cccccc',
+      }
+    });
+    
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(terminalRef.current);
+    setTimeout(() => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    }, 50);
 
-    const currentCmd = command;
-    setCommand('');
-    setOutput(prev => prev + `\n> ${currentCmd}\nExecuting...`);
-    setLoading(true);
+    let socket: WebSocket;
 
-    try {
-      const res = await fetch(`/api/olts/${id}/cli`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: currentCmd })
+    // Fetch OLT credentials
+    fetch(`/api/settings/olt/${id}`)
+      .then(res => res.json())
+      .then(olt => {
+         if (!olt || olt.error) {
+           term.writeln('Error: Could not load OLT details.');
+           setStatus('Error');
+           return;
+         }
+
+         setStatus('Connecting to WebSocket server...');
+         socket = new WebSocket('ws://' + window.location.hostname + ':3010');
+         
+         socket.onopen = () => {
+           setStatus('Connected to Terminal Server. Authenticating to OLT...');
+           
+           const creds = {
+             ip: olt.ip_address,
+             port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
+             username: olt.telnet_user || '',
+             password: olt.telnet_pass || '',
+             protocol: olt.protocol || 'telnet',
+             vendor: olt.vendor || 'zte'
+           };
+
+           socket.send(JSON.stringify({ type: 'connect', creds }));
+         };
+
+         socket.onmessage = (event) => {
+           try {
+             const data = JSON.parse(event.data);
+             if (data.type === 'data') {
+               term.write(data.data);
+               if (status !== 'Connected') setStatus('Connected');
+             } else if (data.type === 'error') {
+               term.writeln(`\r\n\x1b[31mError: ${data.data}\x1b[0m\r\n`);
+               setStatus('Error: ' + data.data);
+             } else if (data.type === 'close') {
+               term.writeln('\r\n\x1b[33mConnection closed by server.\x1b[0m\r\n');
+               setStatus('Disconnected');
+             }
+           } catch(e) {}
+         };
+
+         socket.onclose = () => {
+           term.writeln('\r\n\x1b[33mWebSocket Connection Closed.\x1b[0m\r\n');
+           setStatus('Disconnected');
+         };
+
+         socket.onerror = () => {
+           term.writeln('\r\n\x1b[31mWebSocket Connection Error. Ensure terminal-server.js is running on port 3010.\x1b[0m\r\n');
+           setStatus('Connection Error');
+         };
+
+         setWs(socket);
+
+         term.onData(data => {
+           if (socket.readyState === WebSocket.OPEN) {
+             socket.send(JSON.stringify({ type: 'data', data }));
+           }
+         });
+      })
+      .catch(err => {
+         term.writeln('Failed to fetch OLT details.');
+         setStatus('Error');
       });
 
-      const data = await res.json();
-      
-      if (!res.ok) {
-        setOutput(prev => prev.replace('Executing...', '') + `Error: ${data.error || 'Unknown error'}`);
-      } else {
-        setOutput(prev => prev.replace('Executing...', '') + data.output);
-      }
-    } catch (err: any) {
-      setOutput(prev => prev.replace('Executing...', '') + `\nRequest failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const handleResize = () => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (socket) socket.close();
+      term.dispose();
+    };
+  }, [id]);
 
   return (
     <div className="container-fluid content-wrap">
       <div style={{ marginBottom: '20px' }}>
-        <a href={`/settings/olts/${id}`} className="btn btn-success">
+        <Link href={`/settings/olts/${id}`} className="btn btn-success">
           <i className="fa fa-arrow-left"></i> Back to OLT details
-        </a>
+        </Link>
       </div>
 
       <div className="panel panel-default border-0 shadow-sm">
-        <div className="panel-heading" style={{ backgroundColor: '#fff', borderBottom: '1px solid #eee' }}>
+        <div className="panel-heading" style={{ backgroundColor: '#fff', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
           <h3 className="panel-title" style={{ fontWeight: 'bold', color: '#333' }}>
-            Terminal (OLT ID: {id})
+            Interactive Terminal (OLT ID: {id})
           </h3>
+          <span style={{ color: status === 'Connected' ? 'green' : (status.includes('Error') ? 'red' : 'orange') }}>
+            {status}
+          </span>
         </div>
-        <div className="panel-body">
-                    
-                    <div 
-                      className="bg-dark text-light p-3 mb-3 rounded" 
-                      style={{ 
-                        height: '400px', 
-                        overflowY: 'auto', 
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap'
-                      }}
-                    >
-                      {output}
-                      <div ref={outputEndRef} />
-                    </div>
-
-                    <form onSubmit={executeCommand} className="d-flex">
-                      <div className="input-group">
-                        <div className="input-group-prepend">
-                          <span className="input-group-text bg-dark text-light border-dark">&gt;</span>
-                        </div>
-                        <input 
-                          type="text" 
-                          className="form-control" 
-                          value={command}
-                          onChange={(e) => setCommand(e.target.value)}
-                          placeholder="Enter CLI command (e.g., show version, show card)" 
-                          disabled={loading}
-                          autoFocus
-                        />
-                        <div className="input-group-append">
-                          <button 
-                            className="btn btn-primary" 
-                            type="submit" 
-                            disabled={loading}
-                          >
-                            {loading ? <i className="fa fa-spinner fa-spin"></i> : 'Execute'}
-                          </button>
-                        </div>
-                      </div>
-                    </form>
+        <div className="panel-body" style={{ padding: 0 }}>
+            <div 
+              ref={terminalRef} 
+              style={{ height: '600px', width: '100%', backgroundColor: '#1e1e1e' }}
+            />
         </div>
       </div>
     </div>

@@ -54,7 +54,7 @@ export default function GraphsPage() {
             <h5 style={{ margin: '5px 0', fontWeight: 'bold' }}>{title}</h5>
           </div>
           <div className="panel-body" style={{ height: '230px' }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id={`color${dataKey}`} x1="0" y1="0" x2="0" y2="1">
@@ -135,7 +135,7 @@ export default function GraphsPage() {
                     ONU Rx Signal Strength Distribution ({displayName})
                   </div>
                   <div className="panel-body" style={{ height: '350px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" fontSize={11} />

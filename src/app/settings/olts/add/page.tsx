@@ -51,6 +51,8 @@ export default function AddOltPage() {
   const [isZte, setIsZte] = useState(false);
   const [isHuawei, setIsHuawei] = useState(true);
 
+  const [showPassword, setShowPassword] = useState(false);
+
   useEffect(() => {
     // Filter hardware options based on manufacturer
     const hwOpts = OLT_TYPES.filter(t => t.type === formData.manufacturer);
@@ -186,8 +188,11 @@ export default function AddOltPage() {
         
         <div className="form-group">
           <label className="control-label col-sm-2" htmlFor="olt_password">OLT telnet password</label>
-          <div className="col-sm-8">
-            <input type="password" id="olt_password" className="form-control" value={formData.olt_password} onChange={e => setFormData({...formData, olt_password: e.target.value})} required />
+          <div className="col-sm-8" style={{ display: 'flex' }}>
+            <input type={showPassword ? "text" : "password"} id="olt_password" className="form-control" value={formData.olt_password} onChange={e => setFormData({...formData, olt_password: e.target.value})} required />
+            <button type="button" className="btn btn-default" style={{ marginLeft: '5px' }} onClick={() => setShowPassword(!showPassword)}>
+              {showPassword ? "🙈" : "👁️"}
+            </button>
           </div>
         </div>
         

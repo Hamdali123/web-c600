@@ -33,6 +33,9 @@ model OLTDevice {
   configuredOnus   ONUConfigured[]
   unconfiguredOnus ONUUnconfigured[]
   vlans            VLAN[]
+  logMonitorings   LogMonitoring[]
+  logAlerts        LogAlert[]
+  portStatuses     PortStatus[]
 }
 
 model ONUUnconfigured {
@@ -289,3 +292,32 @@ model BillingInvoice {
   status     String   @default("Paid") // Paid, Unpaid
 }
 
+model LogMonitoring {
+  id            Int       @id @default(autoincrement())
+  oltId         Int
+  status        String    // UP / DOWN
+  responseTime  Float?
+  checkedAt     DateTime  @default(now())
+  olt           OLTDevice @relation(fields: [oltId], references: [id], onDelete: Cascade)
+}
+
+model LogAlert {
+  id        Int       @id @default(autoincrement())
+  oltId     Int
+  alertType String
+  message   String
+  sentAt    DateTime  @default(now())
+  olt       OLTDevice @relation(fields: [oltId], references: [id], onDelete: Cascade)
+}
+
+model PortStatus {
+  id          Int       @id @default(autoincrement())
+  oltId       Int
+  portIndex   Int
+  portName    String?
+  status      String    // UP / DOWN
+  inTraffic   BigInt    @default(0)
+  outTraffic  BigInt    @default(0)
+  lastUpdated DateTime  @updatedAt
+  olt         OLTDevice @relation(fields: [oltId], references: [id], onDelete: Cascade)
+}

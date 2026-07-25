@@ -1,6 +1,8 @@
 import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import PasswordReveal from '@/components/PasswordReveal';
+import SnmpTrafficChart from '@/components/SnmpTrafficChart';
 
 export default async function OltDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,7 +20,7 @@ export default async function OltDetailsPage({ params }: { params: Promise<{ id:
     ? "https://sanwanay.smartolt.com/content/img/ZTE-C600.png"
     : "https://sanwanay.smartolt.com/content/img/Huawei-MA5608T.png";
     
-  const uptimeStr = olt.uptime && olt.uptime !== "0 days" ? olt.uptime : "103 days, 19:28"; 
+  const uptimeStr = (olt as any).uptime && (olt as any).uptime !== "0 days" ? (olt as any).uptime : "103 days, 19:28"; 
   const tempStr = olt.temperature ? `${olt.temperature}°C` : '50°C';
 
   return (
@@ -66,27 +68,19 @@ export default async function OltDetailsPage({ params }: { params: Promise<{ id:
               </tr>
               <tr>
                 <td>OLT telnet username</td>
-                <td>
-                  ********** <i className="fa fa-eye" style={{ color: '#337ab7', cursor: 'pointer' }}></i>
-                </td>
+                <td><PasswordReveal value={olt.telnet_user || ''} isUsername={true} /></td>
               </tr>
               <tr>
                 <td>OLT telnet password</td>
-                <td>
-                  ********** <i className="fa fa-eye" style={{ color: '#337ab7', cursor: 'pointer' }}></i>
-                </td>
+                <td><PasswordReveal value={olt.telnet_pass || ''} /></td>
               </tr>
               <tr>
                 <td>SNMP read-only community</td>
-                <td>
-                  ********** <i className="fa fa-eye" style={{ color: '#337ab7', cursor: 'pointer' }}></i>
-                </td>
+                <td><PasswordReveal value={olt.snmp_ro || ''} /></td>
               </tr>
               <tr>
                 <td>SNMP read-write community</td>
-                <td>
-                  ********** <i className="fa fa-eye" style={{ color: '#337ab7', cursor: 'pointer' }}></i>
-                </td>
+                <td><PasswordReveal value={olt.snmp_rw || ''} /></td>
               </tr>
               <tr>
                 <td>SNMP UDP port</td>
@@ -126,7 +120,15 @@ export default async function OltDetailsPage({ params }: { params: Promise<{ id:
                     <option>SmartOLT</option>
                   </select>
                   <a href="#" className="btn btn-xs btn-success margin-left" style={{ marginLeft: '10px' }}>Set profiles</a>
-                  <a href="#" className="margin-left" style={{ marginLeft: '10px' }}>Manage TR069 profiles</a>
+                  <a href="#" className="margin-left" style={{ marginLeft: '10px', color: '#337ab7' }}>Manage TR069 profiles</a>
+                </td>
+              </tr>
+              <tr>
+                <td>Default ONU TR069 interface</td>
+                <td>
+                  <select className="form-control" style={{ display: 'inline-block', width: 'auto', padding: '2px 10px', height: '26px' }}>
+                    <option>Mgmt IP (recommended)</option>
+                  </select>
                 </td>
               </tr>
             </tbody>
@@ -139,13 +141,53 @@ export default async function OltDetailsPage({ params }: { params: Promise<{ id:
           <h3 style={{ marginTop: 0, color: '#005b9f', fontWeight: 'bold' }}>ZTE 中兴</h3>
         )}
         <img src={imageSrc} alt="OLT Hardware" style={{ maxWidth: '100%', maxHeight: '400px' }} />
-        
-        <div className="panel panel-default" style={{ marginTop: '20px', display: 'inline-block', padding: '10px 20px', borderRadius: '4px' }}>
-          <span><i className="fa fa-cogs" style={{ marginRight: '10px' }}></i> Uptime</span>
-          <span style={{ marginLeft: '20px', fontStyle: 'italic', color: '#666' }}>
-            {uptimeStr}, <span style={{ color: '#d9534f', fontWeight: 'bold' }}>{tempStr}</span>
-          </span>
+        <div style={{ marginTop: '20px', width: '100%', maxWidth: '300px', margin: '20px auto 0' }}>
+          <div style={{ border: '1px solid #ddd', borderRadius: '4px', marginBottom: '20px', backgroundColor: '#f9f9f9' }}>
+            <table className="table" style={{ marginBottom: 0, fontSize: '13px' }}>
+              <tbody>
+                <tr>
+                  <td style={{ borderTop: 'none', verticalAlign: 'middle', textAlign: 'left' }}>
+                    <i className="fa fa-cogs" style={{ color: '#888', marginRight: '5px' }}></i> Uptime
+                  </td>
+                  <td style={{ borderTop: 'none', textAlign: 'right' }}>
+                    <i className="fa fa-refresh" style={{ color: '#888', marginRight: '5px', cursor: 'pointer' }}></i>
+                    <span style={{ fontStyle: 'italic', color: '#555' }}>{uptimeStr}</span>, <span style={{ color: '#d9534f', fontWeight: 'bold' }}>{tempStr}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ verticalAlign: 'middle', textAlign: 'left' }}>
+                    <i className="fa fa-fan" style={{ color: '#888', marginRight: '5px' }}></i> Fans
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button className="btn btn-default btn-xs" style={{ backgroundColor: '#aaa', color: '#fff', border: 'none', padding: '2px 8px' }}>Configure</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: 'left', color: '#555' }}>Fan 0</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: 'left', color: '#555' }}>Fan 1</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: 'left', color: '#555' }}>Fan 2</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: 'left', color: '#555' }}>Voltage</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>52.96 V</td>
+                </tr>
+                <tr>
+                  <td style={{ textAlign: 'left', color: '#555' }}>Power usage</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>283.8 W</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+        
+        <SnmpTrafficChart oltId={olt.id} />
       </div>
     </div>
   );

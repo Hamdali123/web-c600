@@ -1,5 +1,6 @@
 import cron from 'node-cron';
-import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails, authorizeOnu } from './oltConnection';
+import fs from 'fs';
+import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails, authorizeOnu, executeOltCommandBatch, parseOltAttenuation, parseOnuDetails } from './oltConnection';
 import prisma from './prisma';
 import { createNotification } from './notifications';
 
@@ -30,11 +31,11 @@ cron.schedule('* * * * *', async () => {
                     
                     const lines = output.split('\n');
                     for (const line of lines) {
-                        const match = line.match(/(gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)(\d+\/\d+\/\d+)(?::(\d+))?\s+(ZTEG[A-Z0-9]+)/i);
+                        const match = line.match(/(?:gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)?(\d+\/\d+\/\d+)(?::(\d+))?\s+(ZTEG[A-Z0-9]+)/i);
                         if (match) {
-                            const port = 'gpon_olt-' + match[2];
-                            const onuId = match[3] || '1'; // Unconfigured ONU might not have ID yet depending on firmware
-                            const sn = match[4];
+                            const port = 'gpon_olt-' + match[1];
+                            const onuId = match[2] || '1'; // Unconfigured ONU might not have ID yet depending on firmware
+                            const sn = match[3];
 
                             // 1. Cek apakah unconfigured ini sudah terdaftar sebelumnya
                             const existsUncfg = await prisma.oNUUnconfigured.findUnique({ where: { sn_mac: sn } });
@@ -160,6 +161,8 @@ cron.schedule('*/2 * * * *', async () => {
             try {
                 const stateOutput = await executeOltCommand(creds, 'show gpon onu state');
                 const stateLines = stateOutput.split('\n');
+                
+                const onlineOnus: any[] = [];
 
                 for (const onu of configuredOnus) {
                     const portNumber = (onu.pon_port || '').replace('gpon-olt_', '');
@@ -195,15 +198,43 @@ cron.schedule('*/2 * * * *', async () => {
                         }
                     });
 
-                    // Jika Online, ambil sinyal & detail
+                    // Jika Online, tambahkan ke list untuk dibatch
                     if (status === 'Online') {
+                        onlineOnus.push({ onu, portNumber });
+                    } else {
+                        // Notifikasi Offline
+                        const offlineReasonLower = reason?.toLowerCase() || '';
+                        if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dyinggasp')) {
+                            await createNotification(
+                                onu.id,
+                                `ONU ${onu.name} is ${status} (${reason})`,
+                                offlineReasonLower.includes('los') ? 'error' : 'warning'
+                            );
+                        }
+                    }
+                } // End of state processing loop
+
+                if (onlineOnus.length > 0 && creds.vendor === 'zte') {
+                    const commands: string[] = [];
+                    for (const { onu, portNumber } of onlineOnus) {
+                        const onuInterface = `gpon_onu-${portNumber}:${onu.onu_id}`;
+                        commands.push(`show pon power attenuation ${onuInterface}`);
+                        commands.push(`show gpon onu detail-info ${onuInterface}`);
+                    }
+
+                    try {
+                        const outputs = await executeOltCommandBatch(creds, commands);
+                        let outputIndex = 0;
+                        for (const { onu, portNumber } of onlineOnus) {
                             try {
-                                const onuInterface = creds.vendor === 'zte' ? `gpon_onu-${portNumber}:${onu.onu_id}` : onu.pon_port;
-                                const att = await readOltAttenuation(creds, onuInterface || '');
+                                const attOutput = outputs[outputIndex++];
+                                const detOutput = outputs[outputIndex++];
+
+                                const att = parseOltAttenuation(attOutput);
+                                const details = parseOnuDetails(detOutput);
+
                                 const signal = parseFloat(att.onu_rx_power);
                                 const signal_tx = parseFloat(att.onu_tx_power);
-
-                                const details = await getOnuDetails(creds, onuInterface || '', onu.onu_id || '');
 
                                 const updateData: any = {
                                     signal_tx: isNaN(signal_tx) ? null : signal_tx,
@@ -213,6 +244,20 @@ cron.schedule('*/2 * * * *', async () => {
                                     tv_status: (details as any).tv_status || 'Down',
                                     last_online: new Date()
                                 };
+
+                                // Cache OLT Tx Power for PON Ports page
+                                if (att.olt_tx_power !== '-40.0') {
+                                    const cachePath = './pon_tx_cache.json';
+                                    let cache: any = {};
+                                    if (fs.existsSync(cachePath)) {
+                                        try { cache = JSON.parse(fs.readFileSync(cachePath, 'utf8')); } catch(e){}
+                                    }
+                                    const normalizedPort = onu.pon_port?.replace('gpon-olt_', 'gpon_olt-');
+                                    if (normalizedPort && cache[normalizedPort] !== att.olt_tx_power) {
+                                        cache[normalizedPort] = att.olt_tx_power;
+                                        fs.writeFileSync(cachePath, JSON.stringify(cache));
+                                    }
+                                }
 
                                 if (signal !== -40) {
                                     updateData.signal = isNaN(signal) ? null : signal;
@@ -264,18 +309,11 @@ cron.schedule('*/2 * * * *', async () => {
                                     });
                                 }
                             }
-                        } else {
-                            // Notifikasi Offline
-                            const offlineReasonLower = reason?.toLowerCase() || '';
-                            if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dyinggasp')) {
-                                await createNotification(
-                                    onu.id,
-                                    `ONU ${onu.name} is ${status} (${reason})`,
-                                    offlineReasonLower.includes('los') ? 'error' : 'warning'
-                                );
-                            }
                         }
+                    } catch (e) {
+                        console.error(`[Sync] Batch processing failed:`, e);
                     }
+                }
             } catch (e) {
                 console.error(`[Sync] Gagal ambil status state dari OLT ${olt.name}`);
             }

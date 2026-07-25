@@ -18,7 +18,7 @@ export async function GET() {
           port: olt.telnet_port || 23,
           username: olt.telnet_user || '',
           password: olt.telnet_pass || '',
-          vendor: olt.vendor?.toLowerCase() || 'zte',
+          vendor: (olt.vendor?.toLowerCase() as 'zte' | 'huawei') || 'zte',
           protocol: (olt.protocol === 'ssh' ? 'ssh' : 'telnet') as 'telnet' | 'ssh'
         };
 

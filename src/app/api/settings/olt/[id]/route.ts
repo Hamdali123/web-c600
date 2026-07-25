@@ -40,6 +40,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const body = await request.json();
 
+    if (body.ipAddress) {
+      const ipRegex = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+      if (!ipRegex.test(body.ipAddress)) {
+        return NextResponse.json({ success: false, error: "Invalid IP address format." }, { status: 400 });
+      }
+    }
+
     const updatedOlt = await prisma.oLTDevice.update({
       where: { id: id },
       data: {

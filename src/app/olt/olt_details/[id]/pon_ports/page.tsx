@@ -65,8 +65,8 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
                 <th style={{ width: '15%' }}>Load</th>
                 <th style={{ width: '10%', textAlign: 'center' }}>Average signal</th>
                 <th style={{ width: '12%' }}>Description</th>
-                <th style={{ width: '8%', textAlign: 'center' }}>Range</th>
-                <th style={{ width: '9%', textAlign: 'center' }}>Tx power</th>
+                <th style={{ width: '12%' }}>Properties</th>
+                <th style={{ width: '9%', textAlign: 'center' }}>Tx power<br/><span style={{fontSize: '10px', color: '#777'}}>dBm</span></th>
                 <th style={{ width: '10%', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
@@ -119,7 +119,7 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
                         </td>
                         <td className="text-center" style={{ verticalAlign: 'middle' }}>
                           <span style={{ color: isUp ? '#5cb85c' : '#d9534f', fontWeight: 'bold' }}>
-                            {port.operState?.toUpperCase() || 'DOWN'}
+                            {port.operState ? (port.operState.charAt(0).toUpperCase() + port.operState.slice(1).toLowerCase()) : 'Down'}
                           </span>
                         </td>
                         <td className="text-center" style={{ verticalAlign: 'middle', fontSize: '12px' }}>
@@ -143,11 +143,12 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
                         <td style={{ verticalAlign: 'middle', fontStyle: 'italic', color: '#666' }}>
                           {port.description || ''}
                         </td>
-                        <td className="text-center" style={{ verticalAlign: 'middle', fontSize: '12px' }}>
-                          0 - 20000<br/>m
+                        <td style={{ verticalAlign: 'middle', fontSize: '12px', color: '#666' }}>
+                          Range: {port.properties?.range || '0 - 20000 m'}<br/>
+                          Rogue ONU detect: <u><a href="#" style={{color: '#666'}}>Enabled</a></u>
                         </td>
                         <td className="text-center" style={{ verticalAlign: 'middle' }}>
-                          5.371 dBm
+                          1490: {port.txPower ? port.txPower : 'N/A'}
                         </td>
                         <td className="text-center" style={{ verticalAlign: 'middle', fontSize: '12px' }}>
                           <a href="#" style={{ color: '#337ab7', display: 'block', marginBottom: '4px', textDecoration: 'none' }}><i className="fa fa-plus-circle"></i> Configure</a>

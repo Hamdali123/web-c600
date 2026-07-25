@@ -22,6 +22,33 @@ function OltsContent() {
      setLoading(false);
   };
 
+  const handleExportCSV = () => {
+    if (!olts || olts.length === 0) return alert('No data to export.');
+    
+    const headers = ['ID', 'Name', 'IP Address', 'Telnet Port', 'SNMP Port', 'Hardware Version', 'Software Version'];
+    const rows = olts.map(o => [
+       o.id, 
+       `"${o.name}"`, 
+       o.ip_address, 
+       o.telnet_port, 
+       o.snmp_port, 
+       `"${o.hardware_version || ''}"`, 
+       `"${o.software_version || ''}"`
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n"
+        + rows.map(e => e.join(",")).join("\n");
+        
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `olts_list_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
 
   const handlePullOnus = async (id: number) => {
@@ -48,7 +75,9 @@ function OltsContent() {
         <i className="fa fa-plus"></i> Add OLT
       </Link>
       
-      <a className="btn btn-success margin-left margin-bottom export-button">Export OLTs list</a>
+      <button onClick={handleExportCSV} className="btn btn-success margin-left margin-bottom export-button">
+        Export OLTs list
+      </button>
       
       <table className="table table-striped">
         <thead>

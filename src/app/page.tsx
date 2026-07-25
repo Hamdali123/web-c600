@@ -252,7 +252,7 @@ export default function Dashboard() {
             <div className="panel-body text-center" id="onusStatusesGraph" style={{ padding: '20px 0 0 0' }}>
               <div style={{ height: '320px', width: '100%', position: 'relative' }}>
                 {isMounted && (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <AreaChart data={networkStatusData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorOnline" x1="0" y1="0" x2="0" y2="1">
@@ -321,7 +321,7 @@ export default function Dashboard() {
             </div>
             <div className="panel-body" style={{ padding: '20px' }}>
               <div style={{ height: '240px', width: '100%' }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={authPerDay.length > 0 ? authPerDay : [{ date: 'Today', gpon_total: 0, epon_total: 0 }]}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
                     <XAxis dataKey="date" fontSize={11} tickLine={false} stroke="#333333" />

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import PasswordReveal from '@/components/PasswordReveal';
+import SnmpTrafficChart from '@/components/SnmpTrafficChart';
 
 export default function OltDetailsPage() {
   const params = useParams();
@@ -260,47 +262,19 @@ export default function OltDetailsPage() {
                   </tr>
                    <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>OLT telnet username</td>
-                    <td>
-                      {visibleFields.telnet_user ? olt.telnet_user : '********'} 
-                      <i 
-                        className={`fa ${visibleFields.telnet_user ? 'fa-eye-slash' : 'fa-eye'} text-primary`} 
-                        style={{ cursor: 'pointer', marginLeft: '5px' }}
-                        onClick={() => toggleVisibility('telnet_user')}
-                      ></i>
-                    </td>
+                    <td><PasswordReveal value={olt.telnet_user || ''} isUsername={true} /></td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>OLT telnet password</td>
-                    <td>
-                      {visibleFields.telnet_pass ? olt.telnet_pass : '********'} 
-                      <i 
-                        className={`fa ${visibleFields.telnet_pass ? 'fa-eye-slash' : 'fa-eye'} text-primary`} 
-                        style={{ cursor: 'pointer', marginLeft: '5px' }}
-                        onClick={() => toggleVisibility('telnet_pass')}
-                      ></i>
-                    </td>
+                    <td><PasswordReveal value={olt.telnet_pass || ''} /></td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>SNMP read-only community</td>
-                    <td>
-                      {visibleFields.snmp_ro ? olt.snmp_ro : '********'} 
-                      <i 
-                        className={`fa ${visibleFields.snmp_ro ? 'fa-eye-slash' : 'fa-eye'} text-primary`} 
-                        style={{ cursor: 'pointer', marginLeft: '5px' }}
-                        onClick={() => toggleVisibility('snmp_ro')}
-                      ></i>
-                    </td>
+                    <td><PasswordReveal value={olt.snmp_ro || ''} /></td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>SNMP read-write community</td>
-                    <td>
-                      {visibleFields.snmp_rw ? olt.snmp_rw : '********'} 
-                      <i 
-                        className={`fa ${visibleFields.snmp_rw ? 'fa-eye-slash' : 'fa-eye'} text-primary`} 
-                        style={{ cursor: 'pointer', marginLeft: '5px' }}
-                        onClick={() => toggleVisibility('snmp_rw')}
-                      ></i>
-                    </td>
+                    <td><PasswordReveal value={olt.snmp_rw || ''} /></td>
                   </tr>
                   <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>SNMP UDP port</td>
@@ -309,6 +283,43 @@ export default function OltDetailsPage() {
                   <tr>
                     <td style={{ fontWeight: 'bold', color: '#555' }}>IPTV module</td>
                     <td>Disabled</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>OLT hardware version</td>
+                    <td>{olt.manufacturer ? `${olt.manufacturer.toUpperCase()}-` : ''}{olt.hardware_version || 'C600'}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>OLT software version</td>
+                    <td>1.2.2 (Detected)</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>Supported PON types</td>
+                    <td>{olt.pon_types || 'GPON'}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>NTP servers</td>
+                    <td>
+                      20.101.57.9, 216.239.35.4, 162.159.200.123 
+                      <a href="#" className="btn btn-xs btn-success margin-left" style={{ marginLeft: '10px' }}>Edit NTP servers</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>TR069 Profile</td>
+                    <td>
+                      <select className="form-control" style={{ display: 'inline-block', width: 'auto', padding: '2px 10px', height: '26px' }}>
+                        <option>SmartOLT</option>
+                      </select>
+                      <a href="#" className="btn btn-xs btn-success margin-left" style={{ marginLeft: '10px' }}>Set profiles</a>
+                      <a href="#" className="margin-left" style={{ marginLeft: '10px', color: '#337ab7' }}>Manage TR069 profiles</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 'bold', color: '#555' }}>Default ONU TR069 interface</td>
+                    <td>
+                      <select className="form-control" style={{ display: 'inline-block', width: 'auto', padding: '2px 10px', height: '26px' }}>
+                        <option>Mgmt IP (recommended)</option>
+                      </select>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -325,12 +336,51 @@ export default function OltDetailsPage() {
                     />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
-                  <i className="fa fa-cog text-muted"></i>
-                  <span style={{ fontWeight: 'bold', color: '#555' }}>Uptime</span>
-                  <span style={{ color: '#d9534f', fontWeight: 'bold' }}>{olt.uptime || "Unknown"}</span>
-                  <span style={{ color: '#f0ad4e', fontWeight: 'bold' }}>{olt.temperature || "47°C"}</span>
+                <div style={{ border: '1px solid #ddd', borderRadius: '4px', marginBottom: '20px', backgroundColor: '#f9f9f9', textAlign: 'left' }}>
+                  <table className="table" style={{ marginBottom: 0, fontSize: '13px' }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ borderTop: 'none', verticalAlign: 'middle', textAlign: 'left' }}>
+                          <i className="fa fa-cogs" style={{ color: '#888', marginRight: '5px' }}></i> Uptime
+                        </td>
+                        <td style={{ borderTop: 'none', textAlign: 'right' }}>
+                          <i className="fa fa-refresh" style={{ color: '#888', marginRight: '5px', cursor: 'pointer' }}></i>
+                          <span style={{ fontStyle: 'italic', color: '#555' }}>{olt.uptime || "Unknown"}</span>, <span style={{ color: '#d9534f', fontWeight: 'bold' }}>{olt.temperature || "47°C"}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ verticalAlign: 'middle', textAlign: 'left' }}>
+                          <i className="fa fa-fan" style={{ color: '#888', marginRight: '5px' }}></i> Fans
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button className="btn btn-default btn-xs" style={{ backgroundColor: '#aaa', color: '#fff', border: 'none', padding: '2px 8px' }}>Configure</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ textAlign: 'left', color: '#555' }}>Fan 0</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                      </tr>
+                      <tr>
+                        <td style={{ textAlign: 'left', color: '#555' }}>Fan 1</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                      </tr>
+                      <tr>
+                        <td style={{ textAlign: 'left', color: '#555' }}>Fan 2</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Auto: 48%</td>
+                      </tr>
+                      <tr>
+                        <td style={{ textAlign: 'left', color: '#555' }}>Voltage</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>52.96 V</td>
+                      </tr>
+                      <tr>
+                        <td style={{ textAlign: 'left', color: '#555' }}>Power usage</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>283.8 W</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
+
+                <SnmpTrafficChart oltId={olt.id} />
               </div>
             </div>
           </div>
