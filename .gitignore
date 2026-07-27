@@ -43,3 +43,13 @@ next-env.d.ts
 # database
 /prisma/*.db
 /prisma/*.db-journal
+
+# binary & large files
+/ngrok
+/dev.db
+
+# runtime cache
+pon_tx_cache.json
+
+# exported CSV
+*.csv

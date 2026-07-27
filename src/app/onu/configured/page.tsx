@@ -24,17 +24,17 @@ const SearchableDropdown = ({ label, options, value, onChange, placeholder = "An
   );
 
   return (
-    <div className="form-group margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }} ref={dropdownRef}>
-      {label && <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>{label}</label>}
+    <div className="form-group margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px', marginBottom: '5px' }} ref={dropdownRef}>
+      {label && <label className="control-label" style={{ marginRight: '6px', fontWeight: 'bold', fontSize: '14px', color: '#000' }}>{label}</label>}
       <div 
         className="form-control" 
-        style={{ width, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', paddingRight: '20px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid #e0e0e0', borderRadius: '4px', height: '32px', padding: '5px 12px', fontSize: '14px', color: '#2c3e50', boxShadow: 'none' }}
+        style={{ width, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fff', paddingRight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', border: '1px solid #ccc', borderRadius: '3px', height: '34px', padding: '6px 12px', fontSize: '13px', color: '#555', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)' }}
         onClick={() => setIsOpen(!isOpen)}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexGrow: 1 }}>
           {value === 'all' || value === '' ? placeholder : options.find((o:any) => o.value === String(value))?.label || placeholder}
         </span>
-        <span className="caret" style={{ color: '#999', marginLeft: '5px' }}></span>
+        <span className="caret" style={{ color: '#555', marginLeft: '5px' }}></span>
       </div>
       
       {isOpen && (
@@ -273,24 +273,36 @@ function ConfiguredOnuContent() {
 
   useEffect(() => {
     fetchMasterData();
-    fetchOnus();
-  }, [fetchMasterData, fetchOnus]);
+  }, [fetchMasterData]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchOnus();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [fetchOnus]);
 
   const getSignalColor = (val: number | null) => {
     if (val === null) return '#ccc';
-    if (val <= -28) return '#d9534f'; // Red
-    if (val <= -25) return '#f0ad4e'; // Yellow
+    if (val <= -33) return '#d9534f'; // Red
+    if (val <= -30) return '#f0ad4e'; // Yellow
     return '#5cb85c'; // Green
   };
 
   const renderSignalBars = (signal: number | null) => {
-    if (signal === null) return <span className="text-muted">-</span>;
-    const color = getSignalColor(signal);
+    if (signal === null) return <span className="text-muted" style={{ fontSize: '18px' }}>-</span>;
+    
+    let iconColor = '#00a65a'; // green
+    if (signal <= -33) iconColor = '#dd4b39'; // red
+    else if (signal <= -30) iconColor = '#f39c12'; // orange/warning
+    
     return (
-      <div className="text-center" style={{ lineHeight: '1' }}>
-        <i className="fa fa-signal" style={{ color: color, fontSize: '14px' }}></i>
-        <div style={{ fontSize: '11px', color: '#777', marginTop: '4px' }}>{signal}</div>
-        <div style={{ fontSize: '10px', color: '#999' }}>dBm</div>
+      <div style={{ lineHeight: '1.25' }}>
+        <i className="fa fa-signal fa-lg" style={{ color: iconColor }}></i>
+        <div style={{ marginTop: '3px' }}>
+          {signal.toFixed(2)}
+          <div style={{ fontSize: '10px', color: '#999', lineHeight: '1' }}>dBm</div>
+        </div>
       </div>
     );
   };
@@ -298,11 +310,11 @@ function ConfiguredOnuContent() {
   const getStatusIcon = (status: string, reason: string | null) => {
     if (status === 'Offline') {
       const lowerReason = (reason || '').toLowerCase();
-      if (lowerReason.includes('los')) return <i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }} title="Loss of Signal"></i>;
-      if (lowerReason.includes('power') || lowerReason.includes('dyinggasp')) return <i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }} title="Power Failed"></i>;
-      return <i className="fa fa-globe" style={{ color: '#777', fontSize: '18px' }} title={reason ? `Offline (${reason})` : 'Offline'}></i>;
+      if (lowerReason.includes('los')) return <i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '22px' }} title="Loss of Signal"></i>;
+      if (lowerReason.includes('power') || lowerReason.includes('dyinggasp')) return <i className="fa fa-plug" style={{ color: '#777', fontSize: '22px' }} title="Power Failed"></i>;
+      return <i className="fa fa-globe" style={{ color: '#777', fontSize: '22px' }} title={reason ? `Offline (${reason})` : 'Offline'}></i>;
     }
-    return <i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '18px' }} title="Online"></i>;
+    return <i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '22px' }} title="Online"></i>;
   };
 
   return (
@@ -315,34 +327,35 @@ function ConfiguredOnuContent() {
         .configured-onu-container .table > tbody > tr > td {
           vertical-align: middle;
           padding: 8px 10px;
-          color: #2c3e50;
-          font-size: 14px;
+          color: #333;
+          font-size: 13px;
         }
         .configured-onu-container .table > thead > tr > th {
           vertical-align: middle;
-          padding: 10px 10px;
-          color: #2c3e50;
-          font-size: 14px;
+          padding: 12px 10px;
+          color: #333;
+          font-size: 13px;
           font-weight: 600;
-          border-bottom: 2px solid #ddd;
+          border-bottom: 1px solid #eaeaea;
         }
         .configured-onu-container .form-group {
-          margin-bottom: 15px !important;
+          margin-bottom: 5px !important;
         }
         .configured-onu-container .filters-row {
-          padding-top: 10px;
-          padding-bottom: 10px;
+          padding-top: 0px;
+          padding-bottom: 0px;
+          margin-bottom: 5px;
         }
       `}} />
       
-      <form className="form-inline configured" onSubmit={(e) => { e.preventDefault(); fetchOnus(); }}>
-        <div className="margin-bottom filters-row">
+      <form className="form-inline configured" onSubmit={(e) => { e.preventDefault(); fetchOnus(); }} style={{ marginBottom: '10px' }}>
+        <div className="filters-row">
           <input type="hidden" id="olts_count" value="1"/>
 
-          <div className="form-group margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Search</label>
+          <div className="form-group margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px', marginBottom: '5px' }}>
+            <label className="control-label" style={{ marginRight: '6px', fontWeight: 'bold', fontSize: '14px', color: '#000' }}>Search</label>
             <input type="text" className="form-control" placeholder="SN, IP, name, address" 
-              style={{ width: '240px', display: 'inline-block', height: '32px', fontSize: '14px', padding: '5px 12px', color: '#2c3e50', border: '1px solid #e0e0e0', boxShadow: 'none' }}
+              style={{ width: '220px', display: 'inline-block', height: '34px', fontSize: '13px', padding: '6px 12px', color: '#555', border: '1px solid #ccc', borderRadius: '3px', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)' }}
               value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
           </div>
           
@@ -386,7 +399,7 @@ function ConfiguredOnuContent() {
           />
           
           <SearchableDropdown 
-            label="ODB" 
+            label="Splitter" 
             width="100px"
             options={[{value: 'all', label: 'Any'}, ...masterData.odbs.map((o:any) => ({value: String(o.id), label: o.name}))]} 
             value={filters.odb} 
@@ -402,7 +415,7 @@ function ConfiguredOnuContent() {
           />
         </div>
 
-        <div className="margin-bottom filters-row">
+        <div className="filters-row" style={{ marginTop: '5px' }}>
           <SearchableDropdown 
             label="ONU type" 
             width="110px"
@@ -433,49 +446,50 @@ function ConfiguredOnuContent() {
             onChange={(val: any) => setFilters({...filters, pon_type: val, page: 1})} 
           />
 
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Status </label>
+          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px', marginBottom: '5px' }}>
+            <label className="control-label" style={{ marginRight: '6px', fontWeight: 'bold', fontSize: '14px', color: '#000' }}>Status </label>
             <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.status === 'Online' && !filters.signal_status ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Online', reason: '', signal_status: ''})} title="Online"><i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.reason === 'Power Failed' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'Power Failed', signal_status: ''})} title="Power Fail"><i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.reason === 'LOS' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'LOS', signal_status: ''})} title="Loss of Signal"><i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.status === 'Offline' && !filters.reason ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: '', signal_status: ''})} title="Offline"><i className="fa fa-globe" style={{ color: '#777', fontSize: '18px' }}></i></button>
-              <button type="button" className="btn btn-default" style={{ height: '32px', padding: '5px 12px' }} title="Admin Disabled"><i className="fa fa-ban" style={{ color: '#777', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.status === 'Online' && !filters.signal_status ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, status: 'Online', reason: '', signal_status: ''})} title="Online"><i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.reason === 'Power Failed' ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'Power Failed', signal_status: ''})} title="Power Fail"><i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.reason === 'LOS' ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'LOS', signal_status: ''})} title="Loss of Signal"><i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.status === 'Offline' && !filters.reason ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: '', signal_status: ''})} title="Offline"><i className="fa fa-globe" style={{ color: '#777', fontSize: '18px' }}></i></button>
+              <button type="button" className="btn btn-default" style={{ height: '34px', padding: '6px 12px' }} title="Admin Disabled"><i className="fa fa-ban" style={{ color: '#777', fontSize: '18px' }}></i></button>
             </div>
           </div>
           
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Signal </label>
+          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px', marginBottom: '5px' }}>
+            <label className="control-label" style={{ marginRight: '6px', fontWeight: 'bold', fontSize: '14px', color: '#000' }}>Signal </label>
             <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'good' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'good' ? '' : 'good', status: 'Online', reason: ''})} title="Good"><i className="fa fa-signal" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'warning' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'warning' ? '' : 'warning', status: 'Online', reason: ''})} title="Warning"><i className="fa fa-signal" style={{ color: '#f39c12', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'critical' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'critical' ? '' : 'critical', status: 'Online', reason: ''})} title="Critical"><i className="fa fa-signal" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.signal_status === 'good' ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'good' ? '' : 'good', status: 'Online', reason: ''})} title="Good"><i className="fa fa-signal" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.signal_status === 'warning' ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'warning' ? '' : 'warning', status: 'Online', reason: ''})} title="Warning"><i className="fa fa-signal" style={{ color: '#f39c12', fontSize: '18px' }}></i></button>
+              <button type="button" className={`btn btn-default ${filters.signal_status === 'critical' ? 'active' : ''}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'critical' ? '' : 'critical', status: 'Online', reason: ''})} title="Critical"><i className="fa fa-signal" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
             </div>
           </div>
           
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '15px' }}>
+          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '10px', marginBottom: '5px' }}>
             <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.onu_mode === 'bridging' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'bridging' ? 'all' : 'bridging', page: 1})} style={{ height: '32px', padding: '5px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Bridging">B</button>
-              <button type="button" className={`btn btn-default ${filters.onu_mode === 'routing' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'routing' ? 'all' : 'routing', page: 1})} style={{ height: '32px', padding: '5px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Routing">R</button>
+              <button type="button" className={`btn btn-default ${filters.onu_mode === 'bridging' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'bridging' ? 'all' : 'bridging', page: 1})} style={{ height: '34px', padding: '6px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Bridging">B</button>
+              <button type="button" className={`btn btn-default ${filters.onu_mode === 'routing' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'routing' ? 'all' : 'routing', page: 1})} style={{ height: '34px', padding: '6px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Routing">R</button>
             </div>
           </div>
           
-          <div className="form-group pon-type-filter" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+          <div className="form-group pon-type-filter" style={{ display: 'inline-block', verticalAlign: 'middle', marginBottom: '5px' }}>
             <div className="btn-group">
-              <button type="button" className={`btn ${showBatchActions ? 'btn-primary' : 'btn-default'}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setShowBatchActions(!showBatchActions)} title="Batch actions">
+              <button type="button" className={`btn ${showBatchActions ? 'btn-primary' : 'btn-default'}`} style={{ height: '34px', padding: '6px 12px' }} onClick={() => setShowBatchActions(!showBatchActions)} title="Batch actions">
                 <i className="fa fa-server" style={{ color: showBatchActions ? '#fff' : '#337ab7', fontSize: '18px' }}></i>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="margin-bottom" style={{ position: 'relative', textAlign: 'center' }}>
-          <a onClick={() => setShowMoreFilters(!showMoreFilters)} style={{ cursor: 'pointer', color: '#337ab7', fontSize: '13px' }}>
-            <i className={showMoreFilters ? "fa fa-chevron-up" : "fa fa-chevron-down"}></i> {showMoreFilters ? 'Less filters' : 'More filters'}
-          </a>
-          
-          <div style={{ position: 'absolute', right: '0px', top: '0', display: 'inline-block' }}>
-            <label style={{ fontSize: '13px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal' }}>
+        <div style={{ position: 'relative', height: '20px', marginBottom: '10px', marginTop: '10px' }}>
+          <div className="text-center" style={{ width: '100%', position: 'absolute', top: 0 }}>
+            <a onClick={() => setShowMoreFilters(!showMoreFilters)} style={{ fontSize: '12px', color: '#337ab7', textDecoration: 'none', cursor: 'pointer' }}>
+              <i className={showMoreFilters ? "fa fa-chevron-up" : "fa fa-chevron-down"} style={{ marginRight: '3px' }}></i> {showMoreFilters ? 'Less filters' : 'More filters'}
+            </a>
+          </div>
+          <div style={{ position: 'absolute', right: '10px', top: '0', display: 'inline-block' }}>
+            <label style={{ fontSize: '12px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal' }}>
               Import
               <input type="file" style={{ display: 'none' }} accept=".csv" onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
@@ -483,8 +497,6 @@ function ConfiguredOnuContent() {
                 }
               }} />
             </label>
-            <span style={{ color: '#337ab7', fontSize: '13px', margin: '0 5px' }}>/</span>
-            <a href="/api/onus/export" target="_blank" style={{ fontSize: '13px', color: '#337ab7', cursor: 'pointer', textDecoration: 'none' }}>Export</a>
           </div>
         </div>
 
@@ -603,35 +615,19 @@ function ConfiguredOnuContent() {
       )}
 
       <div id="onu_configured_list" className="h-75 margin-top">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '20px 10px' }}>
-          <div>
-            <ul className="pagination" style={{ margin: 0 }}>
-              <li className={filters.page === 1 ? 'disabled' : ''}>
-                <a href="#" style={{ color: '#337ab7' }} onClick={(e) => { e.preventDefault(); if (filters.page > 1) setFilters({...filters, page: filters.page - 1}); }}>&lt;</a>
-              </li>
-              {[...Array(Math.max(1, Math.ceil(totalOnus / 100)))].map((_, i) => (
-                <li key={i} className={filters.page === i + 1 ? 'active' : ''}>
-                  <a href="#" 
-                    style={filters.page === i + 1 ? { backgroundColor: '#f4f4f4', color: '#444', borderColor: '#ddd' } : { color: '#337ab7' }}
-                    onClick={(e) => { e.preventDefault(); setFilters({...filters, page: i + 1}); }}>{i + 1}</a>
-                </li>
-              ))}
-              <li className={filters.page >= Math.ceil(totalOnus / 100) ? 'disabled' : ''}>
-                <a href="#" style={{ color: '#337ab7' }} onClick={(e) => { e.preventDefault(); if (filters.page < Math.ceil(totalOnus / 100)) setFilters({...filters, page: filters.page + 1}); }}>&gt;</a>
-              </li>
-            </ul>
-          </div>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#2c3e50' }}>
-            {totalOnus > 0 ? `${(filters.page - 1) * 100 + 1}-${Math.min(filters.page * 100, totalOnus)} ONUs of ${totalOnus} displayed` : '0 ONUs displayed'}
-          </div>
-        </div>
 
-        <div className="row" style={{ backgroundColor: '#fff', margin: 0 }}>
-          <table className="table table-striped table-hover" style={{ width: '100%', borderTop: '1px solid #ddd' }}>
+
+        <div className="row" style={{ backgroundColor: '#fff', margin: 0, position: 'relative' }}>
+          {loading && (
+             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.1)', zIndex: 50, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+                <i className="fa fa-spinner fa-spin fa-5x" style={{ color: '#337ab7' }}></i>
+             </div>
+          )}
+          <table className="table table-striped table-hover" style={{ width: '100%', opacity: loading ? 0.3 : 1, transition: 'opacity 0.2s', borderTop: 'none' }}>
             <thead>
-              <tr style={{ backgroundColor: '#fff' }}>
+              <tr style={{ backgroundColor: '#f9f9f9', color: '#000' }}>
                 {showBatchActions && (
-                  <th className="batch-onu-select-col text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>
+                  <th className="batch-onu-select-col text-center" style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>
                     <input 
                       type="checkbox" 
                       title="Select All" 
@@ -640,27 +636,25 @@ function ConfiguredOnuContent() {
                     />
                   </th>
                 )}
-                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Status</th>
-                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>View</th>
-                <th>Name</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>SN / MAC</th>
-                <th style={{ minWidth: '160px' }}>ONU</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Zone</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>ODB</th>
-                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap' }}>Signal</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>B/R</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>VLAN</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>VoIP</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>TV</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Type</th>
-                <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Auth date</th>
+                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>Status</th>
+                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>View</th>
+                <th style={{ fontWeight: 'bold', fontSize: '14px' }}>Name</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>SN / MAC</th>
+                <th style={{ width: '1%', fontWeight: 'bold', fontSize: '14px' }}>ONU</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>Zone</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>ODB</th>
+                <th className="text-center" style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>Signal</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '14px' }}>B/R</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14px' }}>VLAN</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14px' }}>VoIP</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14px' }}>TV</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14px' }}>Type</th>
+                <th style={{ width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14px' }}>Auth date</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={15} style={{ padding: '60px', textAlign: 'center' }}><i className="fa fa-spinner fa-spin fa-2x text-muted"></i></td></tr>
-              ) : onus.length === 0 ? (
-                <tr><td colSpan={15} style={{ padding: '60px', textAlign: 'center', color: '#999' }}>No ONUs match your search criteria.</td></tr>
+              {onus.length === 0 && !loading ? (
+                <tr><td colSpan={15} style={{ padding: '60px', textAlign: 'center', color: '#999', fontSize: '14px' }}>No ONUs match your search criteria.</td></tr>
               ) : onus.map(onu => (
                 <tr key={onu.id}>
                   {showBatchActions && (
@@ -674,37 +668,38 @@ function ConfiguredOnuContent() {
                       />
                     </td>
                   )}
-                  <td className="text-center">
+                  <td className="text-center" style={{ verticalAlign: 'middle' }}>
                     {getStatusIcon(onu.status, onu.offline_reason)}
                   </td>
-                  <td className="text-center">
-                    <Link href={`/onu/view/${onu.id}`} className="btn btn-primary btn-sm" style={{ padding: '4px 12px', fontSize: '13px', borderRadius: '4px', backgroundColor: '#3c8dbc', borderColor: '#367fa9' }}>View</Link>
+                  <td className="text-center" style={{ verticalAlign: 'middle' }}>
+                    <Link href={`/onu/view/${onu.id}`} className="btn btn-primary btn-sm" style={{ padding: '4px 10px', fontSize: '13px', borderRadius: '3px', backgroundColor: '#188ae2', borderColor: '#188ae2', fontWeight: '500', color: '#fff' }}>View</Link>
                   </td>
-                  <td>{onu.name}</td>
-                  <td>{onu.sn_mac}</td>
-                  <td>
-                    <div style={{ marginBottom: '2px', wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '85px', lineHeight: '1.4' }}>{onu.olt ? `${onu.olt.id} - ${onu.olt.name}` : '---'}</div>
-                    <div style={{ wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '85px', lineHeight: '1.4' }}>{onu.pon_port ? onu.pon_port.replace('gpon-olt_', 'gpon_onu-') : ''}:{onu.onu_id}</div>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>{onu.name}</td>
+                  <td style={{ verticalAlign: 'middle', whiteSpace: 'nowrap', fontSize: '14px', color: '#2c3e50' }}>{onu.sn_mac}</td>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>
+                    <div><span>{onu.olt ? `${onu.olt.id} - ${onu.olt.name}` : '---'}</span></div>
+                    <div style={{ fontSize: '13px', color: '#555', marginTop: '2px' }}>{onu.pon_port ? onu.pon_port.replace('gpon-olt_', 'gpon_onu-') : ''}:{onu.onu_id}</div>
                   </td>
-                  <td>{onu.zone?.name || 'Zone 1'}</td>
-                  <td>{onu.odb?.name || 'None'}</td>
-                  <td className="text-center">
+                  <td className="onu-list-zone-col" style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>
+                    <span className="onu-copy-cell">{onu.zone?.name || 'Zone 1'}</span>
+                  </td>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>{onu.odb?.name || 'None'}</td>
+                  <td className="text-center" style={{ verticalAlign: 'middle', whiteSpace: 'nowrap' }} id={`signal_onu_${onu.id}`}>
                     {renderSignalBars(onu.signal)}
                   </td>
-                  <td>
-                    {onu.mode === 'route' ? (
-                      <span className="label" style={{ backgroundColor: '#2f5572', display: 'inline-block', fontSize: '12px', padding: '3px 6px', color: '#fff', borderRadius: '3px' }}>Router</span>
+                  <td style={{ verticalAlign: 'middle' }}>
+                    {String(onu.mode).toLowerCase().includes('rout') ? (
+                      <span className="label label-info" style={{ backgroundColor: '#34495e', fontSize: '12px', padding: '4px 8px' }}>Router</span>
                     ) : (
-                      <span className="label" style={{ backgroundColor: '#95a5a6', display: 'inline-block', fontSize: '12px', padding: '3px 6px', color: '#fff', borderRadius: '3px' }}>Bridge</span>
+                      <span className="label label-info" style={{ backgroundColor: '#34495e', fontSize: '12px', padding: '4px 8px' }}>Bridge</span>
                     )}
                   </td>
-                  <td>{onu.vlan || '125'}</td>
-                  <td></td>
-                  <td></td>
-                  <td>{onu.type || 'ALL'}</td>
-                  <td className="auth-date">
-                    {new Date(onu.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}-<br/>
-                    {new Date(onu.createdAt).getFullYear()}
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>{onu.vlan || '125'}</td>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}></td>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}></td>
+                  <td style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50' }}>{onu.type || 'ALL'}</td>
+                  <td className="auth-date" style={{ verticalAlign: 'middle', fontSize: '14px', color: '#2c3e50', whiteSpace: 'nowrap' }}>
+                    {new Date(onu.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')}
                   </td>
                 </tr>
               ))}

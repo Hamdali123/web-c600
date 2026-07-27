@@ -24,18 +24,15 @@ cron.schedule('* * * * *', async () => {
 
             if (creds.vendor === 'zte') {
                 try {
-                    let output = await executeOltCommand(creds, 'show gpon onu uncfg').catch(() => '');
-                    if (!output || output.includes('%Error') || output.includes('Invalid input')) {
-                        output = await executeOltCommand(creds, 'show pon onu uncfg').catch(() => '');
-                    }
+                    let output = await executeOltCommand(creds, 'show pon onu uncfg').catch(() => '');
                     
                     const lines = output.split('\n');
                     for (const line of lines) {
-                        const match = line.match(/(?:gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)?(\d+\/\d+\/\d+)(?::(\d+))?\s+(ZTEG[A-Z0-9]+)/i);
+                        const match = line.match(/(?:gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)?(\d+\/\d+\/\d+)(?::(\d+))?\s+([A-Z0-9]{8,20})/i);
                         if (match) {
                             const port = 'gpon_olt-' + match[1];
                             const onuId = match[2] || '1'; // Unconfigured ONU might not have ID yet depending on firmware
-                            const sn = match[3];
+                            const sn = match[3].toUpperCase();
 
                             // 1. Cek apakah unconfigured ini sudah terdaftar sebelumnya
                             const existsUncfg = await prisma.oNUUnconfigured.findUnique({ where: { sn_mac: sn } });

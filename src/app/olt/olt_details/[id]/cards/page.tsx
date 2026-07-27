@@ -25,6 +25,43 @@ export default function OltCardsPage({ params }: { params: Promise<{ id: string 
     }
   };
 
+  const handleRefresh = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/cards/refresh`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to refresh cards');
+      }
+      setCards(data.cards);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRebootCard = async (slot: string) => {
+    if (!confirm(`DANGER: Are you absolutely sure you want to reboot card in slot ${slot}? This will disconnect all customers on this card!`)) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/cards/${slot}/reboot`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(`Card ${slot} reboot initiated successfully.`);
+    } catch (err: any) {
+      alert(`Failed to reboot card: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCards();
   }, [id]);
@@ -33,7 +70,7 @@ export default function OltCardsPage({ params }: { params: Promise<{ id: string 
     <div className="row">
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px' }}>
-          <button className="btn btn-primary" onClick={fetchCards} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74' }}>
+          <button className="btn btn-primary" onClick={handleRefresh} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74' }}>
             <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i> Refresh OLT cards info
           </button>
         </div>
@@ -84,7 +121,7 @@ export default function OltCardsPage({ params }: { params: Promise<{ id: string 
                       <td style={{ verticalAlign: 'middle' }}>{card.role || (card.slot === '10' ? 'Main' : card.slot === '11' ? 'Standby' : 'Main')}</td>
                       <td style={{ verticalAlign: 'middle' }}>{new Date().toISOString().slice(0, 19).replace('T', ' ')}</td>
                       <td style={{ verticalAlign: 'middle', textAlign: 'right' }}>
-                        <button className="btn btn-primary btn-sm" style={{ backgroundColor: '#286090', borderColor: '#204d74', borderRadius: '4px' }}>Reboot-card</button>
+                        <button className="btn btn-primary btn-sm" onClick={() => handleRebootCard(card.slot)} style={{ backgroundColor: '#286090', borderColor: '#204d74', borderRadius: '4px' }}>Reboot-card</button>
                       </td>
                     </tr>
                   );

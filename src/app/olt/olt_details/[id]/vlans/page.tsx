@@ -29,11 +29,54 @@ export default function OltVlansPage({ params }: { params: Promise<{ id: string 
     fetchVlans();
   }, [id]);
 
+  const handleDeleteVlan = async (vlanId: number) => {
+    if (!confirm(`Are you sure you want to delete VLAN ${vlanId}? This will remove it from the physical OLT hardware.`)) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/settings/olt/${id}/vlans/${vlanId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      fetchVlans();
+    } catch (err: any) {
+      alert(`Failed to delete VLAN: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  const handleAddVlan = async () => {
+    const vlanStr = prompt("Enter VLAN ID to add (1-4094):");
+    if (!vlanStr) return;
+    const vlanId = parseInt(vlanStr);
+    if (isNaN(vlanId) || vlanId < 1 || vlanId > 4094) {
+      alert("Invalid VLAN ID. Must be between 1 and 4094.");
+      return;
+    }
+    
+    const desc = prompt("Enter description (optional):") || `VLAN${vlanId}`;
+    
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/settings/olt/${id}/vlans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vlan_id: vlanId, description: desc })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      fetchVlans();
+    } catch (err: any) {
+      alert(`Failed to add VLAN: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="row">
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px' }}>
-          <button className="btn btn-primary" style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
+          <button className="btn btn-primary" onClick={handleAddVlan} style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
             <i className="fa fa-plus"></i> Add VLAN
           </button>
           <button className="btn btn-primary" style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
@@ -95,14 +138,14 @@ export default function OltVlansPage({ params }: { params: Promise<{ id: string 
                       <a href="#" style={{ color: '#337ab7', textDecoration: 'underline' }}>{vlan.id === 125 ? 211 : vlan.id === 1000 ? 3 : vlan.id === 99 || vlan.id === 3000 ? 1 : 0}</a>
                     </td>
                     <td className="text-center" style={{ verticalAlign: 'middle' }}>
-                      <button className="btn btn-danger btn-sm" style={{ backgroundColor: '#d9534f', borderColor: '#d43f3a', borderRadius: '4px' }}>Delete</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDeleteVlan(vlan.id || vlan.vlan_id)} style={{ backgroundColor: '#d9534f', borderColor: '#d43f3a', borderRadius: '4px' }}>Delete</button>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={9} className="text-center text-muted" style={{ padding: '30px' }}>
-                    No VLANs found on this OLT. Click "Get VLANs from OLT" to retry.
+                    No VLANs found on this OLT. Click "Refresh" to retry.
                   </td>
                 </tr>
               )}

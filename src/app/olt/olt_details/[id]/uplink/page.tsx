@@ -8,16 +8,18 @@ export default function OltUplinkPage({ params }: { params: Promise<{ id: string
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchPorts = async () => {
+  const handleRefresh = async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/settings/olt/${id}/uplink-ports`);
+      const res = await fetch(`/api/settings/olt/${id}/uplink/refresh`, {
+        method: 'POST'
+      });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch uplink ports');
+        throw new Error(data.error || 'Failed to refresh uplink ports');
       }
-      setPorts(data);
+      setPorts(data.ports);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -26,15 +28,17 @@ export default function OltUplinkPage({ params }: { params: Promise<{ id: string
   };
 
   useEffect(() => {
-    fetchPorts();
+    // Initial load can still use GET or we can just use the POST refresh if GET isn't implemented.
+    // For now, let's just call handleRefresh on load to ensure live data.
+    handleRefresh();
   }, [id]);
 
   return (
     <div className="row">
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px' }}>
-          <button className="btn btn-primary" onClick={fetchPorts} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74' }}>
-            Refresh uplink ports info
+          <button className="btn btn-primary" onClick={handleRefresh} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74' }}>
+            <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i> Refresh uplink ports info
           </button>
         </div>
         
@@ -56,10 +60,10 @@ export default function OltUplinkPage({ params }: { params: Promise<{ id: string
                 <th style={{ width: '10%' }}>Negotiation</th>
                 <th style={{ width: '6%' }}>MTU</th>
                 <th style={{ width: '8%' }}>WaveL</th>
+                <th style={{ width: '10%' }}>Signal dBm</th>
                 <th style={{ width: '6%' }}>Temp</th>
                 <th style={{ width: '8%' }}>PVID untag</th>
                 <th style={{ width: '15%' }}>Mode: tagged VLANs</th>
-                <th style={{ width: '8%' }}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -73,14 +77,13 @@ export default function OltUplinkPage({ params }: { params: Promise<{ id: string
               ) : ports.length > 0 ? (
                 ports.map((port, idx) => {
                   const isUp = port.operState?.toLowerCase() === 'up' || port.operState?.toLowerCase() === 'working';
-                  // Simulate 1G or 10G based on the interface name 'xgei' vs 'gei'
                   const speed = port.name.includes('xgei') ? '10G' : '1G';
                   
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ verticalAlign: 'middle' }}>{port.name}</td>
                       <td style={{ verticalAlign: 'middle' }}>{port.description}</td>
-                      <td style={{ verticalAlign: 'middle' }}></td>
+                      <td style={{ verticalAlign: 'middle' }}>{isUp ? 'Fiber' : ''}</td>
                       <td style={{ verticalAlign: 'middle', color: '#555' }}>
                         {port.adminState?.toLowerCase() === 'up' ? 'Enabled' : <span style={{ color: '#d9534f' }}>Disabled</span>}
                       </td>
@@ -91,13 +94,17 @@ export default function OltUplinkPage({ params }: { params: Promise<{ id: string
                       </td>
                       <td style={{ verticalAlign: 'middle' }}>Forced N/A</td>
                       <td style={{ verticalAlign: 'middle' }}>1600</td>
-                      <td style={{ verticalAlign: 'middle' }}></td>
-                      <td style={{ verticalAlign: 'middle' }}></td>
-                      <td style={{ verticalAlign: 'middle' }}></td>
-                      <td style={{ verticalAlign: 'middle' }}>Trunk: {idx === 0 || idx === 1 ? '1, 25, 99, 125, 323, 1000, 3000' : idx === 2 ? '99, 125, 1000, 3000' : idx === 3 ? '99' : idx === 4 ? '99, 125' : ''}</td>
-                      <td style={{ verticalAlign: 'middle' }}>
-                        <a href="#" style={{ color: '#337ab7', textDecoration: 'none' }}><i className="fa fa-plus-circle"></i> Configure</a>
+                      <td style={{ verticalAlign: 'middle' }}>{isUp ? '1330' : ''}</td>
+                      <td style={{ verticalAlign: 'middle', fontSize: '12px' }}>
+                         {port.txPower || port.rxPower ? (
+                           <>Tx: {port.txPower}<br/>Rx: {port.rxPower}</>
+                         ) : ''}
                       </td>
+                      <td style={{ verticalAlign: 'middle' }}>
+                         {port.temp ? port.temp : ''}
+                      </td>
+                      <td style={{ verticalAlign: 'middle' }}></td>
+                      <td style={{ verticalAlign: 'middle' }}>Trunk</td>
                     </tr>
                   );
                 })

@@ -3,7 +3,7 @@ export function authorizeOnuCommand(params: {
     onuId: string;
     sn: string;
     name: string;
-    vlan: number;
+    vlan: string | number;
     mode: 'bridge' | 'route';
 }) {
     const portParts = params.portInfo.split('_'); // e.g. gpon-olt_0/1/1
@@ -25,6 +25,7 @@ export function rebootOnuCommand(portInfo: string, onuId: string) {
 config
 interface ${portInfo}
   ont reset ${frameSlotPort} ${onuId}
+  y
 quit
 `;
 }

@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       where: {
         ...filter,
         status: 'Online',
-        signal: { lte: -27, gt: -30 }
+        signal: { lte: -30, gt: -33 }
       }
     });
 
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       where: {
         ...filter,
         status: 'Online',
-        signal: { lte: -30 }
+        signal: { lte: -33 }
       }
     });
 

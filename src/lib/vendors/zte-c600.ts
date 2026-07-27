@@ -3,13 +3,46 @@ export function authorizeOnuCommand(params: {
     onuId: string;
     sn: string;
     name: string;
-    vlan: number;
+    vlan: string | number;
     mode: 'bridge' | 'route';
     pppoeUser?: string;
     pppoePass?: string;
     onuType?: string;
 }) {
-    const interfacePort = params.portInfo.replace('olt', 'onu');
+    const interfacePort = params.portInfo.includes('gpon-olt_') 
+        ? params.portInfo.replace('gpon-olt_', 'gpon_onu-')
+        : params.portInfo.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-');
+    
+    // Parse VLANs to support multiple (e.g. "125, 200")
+    const vlans = params.vlan.toString().split(',').map(v => v.trim()).filter(Boolean);
+    const mainVlan = vlans[0];
+    
+    let vportConfig = '';
+    let mngServiceConfig = '';
+    
+    for (let i = 0; i < vlans.length; i++) {
+        const idx = i + 1;
+        vportConfig += `  vport ${idx} map-type vlan\n  vport ${idx} bind-gemport 1\n`;
+        mngServiceConfig += `  service ${idx} vport ${idx} vlan ${vlans[i]}\n`;
+    }
+
+    let portModeConfig = '';
+    if (params.mode === 'bridge') {
+        if (vlans.length > 1) {
+             // If multiple VLANs, set port to hybrid to pass both (Hotspot + Mgmt/Internet)
+             portModeConfig = `vlan port eth_0/1 mode hybrid def-vlan ${mainVlan} vlan ${vlans.join(',')}`;
+        } else {
+             portModeConfig = `vlan port eth_0/1 mode tag vlan ${mainVlan}`;
+        }
+    } else {
+         portModeConfig = `wan-service 1 type internet vlan ${mainVlan}\n  pppoe 1 user ${params.pppoeUser || ''} password ${params.pppoePass || ''}`;
+         if (vlans.length > 1) {
+             // Map extra VLANs (e.g. Hotspot) to bridge on eth_0/1
+             const extraVlans = vlans.slice(1).join(',');
+             portModeConfig += `\n  vlan port eth_0/1 mode hybrid def-vlan ${vlans[1]} vlan ${extraVlans}`;
+         }
+    }
+
     return `
 configure terminal
 interface ${params.portInfo}
@@ -21,57 +54,68 @@ interface ${interfacePort}:${params.onuId}
   gemport 1 tcont 1
   gemport 1 traffic-limit upstream DOWN downstream UP
   vport-mode manual
-  vport 1 map-type vlan
-  vport 1 bind-gemport 1
+${vportConfig.trimEnd()}
 exit
 pon-onu-mng ${interfacePort}:${params.onuId}
-  service 1 vport 1 vlan ${params.vlan}
-  ${params.mode === 'bridge' 
-    ? `vlan port eth_0/1 mode tag vlan ${params.vlan}` 
-    : `wan-service 1 type internet vlan ${params.vlan}\n  pppoe 1 user ${params.pppoeUser || ''} password ${params.pppoePass || ''}`
-  }
+${mngServiceConfig.trimEnd()}
+  ${portModeConfig}
 exit
 `;
 }
 
 export function rebootOnuCommand(portInfo: string, onuId: string) {
-    const interfacePort = portInfo.replace('olt', 'onu');
+    const interfacePort = portInfo.includes('gpon-olt_') 
+        ? portInfo.replace('gpon-olt_', 'gpon_onu-')
+        : portInfo.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-');
     return `
 pon-onu-mng ${interfacePort}:${onuId}
   reboot
+  yes
 exit
 `;
 }
 
 export function deleteOnuCommand(portInfo: string, onuId: string) {
+    const interfacePort = portInfo.includes('gpon-olt_') 
+        ? portInfo.replace('gpon-olt_', 'gpon_olt-')
+        : portInfo.replace('gpon-onu_', 'gpon_olt-');
     return `
 configure terminal
-interface ${portInfo}
+interface ${interfacePort}
   no onu ${onuId}
 exit
 `;
 }
 
 export function enableOnuCommand(portInfo: string, onuId: string) {
+    const interfacePort = portInfo.includes('gpon-olt_') 
+        ? portInfo.replace('gpon-olt_', 'gpon_olt-')
+        : portInfo.replace('gpon-onu_', 'gpon_olt-');
     return `
 configure terminal
-interface ${portInfo}
+interface ${interfacePort}
   onu ${onuId} state enable
 exit
 `;
 }
 
 export function disableOnuCommand(portInfo: string, onuId: string) {
+    const interfacePort = portInfo.includes('gpon-olt_') 
+        ? portInfo.replace('gpon-olt_', 'gpon_olt-')
+        : portInfo.replace('gpon-onu_', 'gpon_olt-');
     return `
 configure terminal
-interface ${portInfo}
+interface ${interfacePort}
   onu ${onuId} state disable
 exit
 `;
 }
 
 export function getRunningConfigCommand(portInfo: string, onuId: string) {
-    return `show running-config interface ${portInfo}:${onuId}`;
+    const interfacePort = portInfo.includes('gpon-olt_') 
+        ? portInfo.replace('gpon-olt_', 'gpon_onu-')
+        : portInfo.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-');
+    return `show running-config interface ${interfacePort}:${onuId}`;
 }
 
 export function getMetricsCommand() {
@@ -90,8 +134,31 @@ export function getPonPortsCommand() {
     return `show gpon onu state\nshow card`;
 }
 
-export function getUplinkPortsCommand() {
-    return `show interface brief`;
+// Removed duplicate getUplinkPortsCommand
+
+export function getVlansCommand() {
+    return `show vlan`; 
+}
+
+export function parseVlans(output: string) {
+    const vlans: { id: number, desc: string }[] = [];
+    const lines = output.split('\n');
+    for (const line of lines) {
+        
+        const parts = line.trim().split(/\s+/);
+        // Usually: VLAN ID, Name, Status, Ports
+        // Example: 10   VLAN0010   static   ...
+        if (parts.length >= 2) {
+            const vlanIdStr = parts[0];
+            if (/^\d+$/.test(vlanIdStr)) {
+                vlans.push({
+                    id: parseInt(vlanIdStr),
+                    desc: parts[1]
+                });
+            }
+        }
+    }
+    return vlans;
 }
 
 export function parseCards(output: string) {
@@ -191,24 +258,62 @@ export function parsePonPorts(stateOutput: string, cardsOutput: string = '') {
     return Array.from(portsMap.values());
 }
 
+export function getUplinkPortsCommand() {
+    return `show interface brief\nshow interface optical-module`;
+}
+
 export function parseUplinkPorts(output: string) {
     const lines = output.split('\n');
-    const ports: any[] = [];
+    const portsMap = new Map<string, any>();
 
+    let currentSection = ''; // 'brief' or 'optical'
+    
     for (const line of lines) {
+        if (line.includes('Interface') && line.includes('Status')) currentSection = 'brief';
+        if (line.includes('Optical Module Information')) currentSection = 'optical';
+
         if (line.includes('gei-')) {
             const parts = line.trim().split(/\s+/);
-            if (parts.length >= 6) {
-                ports.push({
-                    name: parts[0],
-                    adminState: parts[4],
-                    operState: parts[5],
-                    description: parts.slice(7).join(' ') || ''
+            const name = parts[0];
+            
+            if (!portsMap.has(name)) {
+                portsMap.set(name, {
+                    name, adminState: '', operState: '', description: '',
+                    rxPower: '', txPower: '', temp: ''
                 });
+            }
+
+            const port = portsMap.get(name);
+            
+            if (parts.length >= 6 && !line.includes('Rx') && !line.includes('Tx')) { // brief section
+                port.adminState = parts[4];
+                port.operState = parts[5];
+                port.description = parts.slice(7).join(' ') || '';
+            }
+        }
+        
+        // Match optical module info (this varies heavily by firmware, simplified extraction)
+        // e.g. xgei-1/10/1    Rx : -11.904 (dBm)  Tx : 1.697 (dBm)
+        // or just looking for lines that contain port name and Rx/Tx
+        const opticalMatch = line.match(/(x?gei-\d+\/\d+\/\d+).*?Rx\s*:\s*([\-\d\.]+).*?Tx\s*:\s*([\-\d\.]+)/i);
+        if (opticalMatch) {
+            const name = opticalMatch[1];
+            if (portsMap.has(name)) {
+                const port = portsMap.get(name);
+                port.rxPower = opticalMatch[2];
+                port.txPower = opticalMatch[3];
+            }
+        }
+        const tempMatch = line.match(/(x?gei-\d+\/\d+\/\d+).*?Temperature\s*:\s*([\-\d\.]+)/i);
+        if (tempMatch) {
+            const name = tempMatch[1];
+            if (portsMap.has(name)) {
+                portsMap.get(name).temp = tempMatch[2];
             }
         }
     }
-    return ports;
+    
+    return Array.from(portsMap.values());
 }
 
 export function updateEthPortCommand(onuInterface: string, portName: string, mode: string, vlans: string, adminState?: string, dhcp?: string) {
@@ -248,4 +353,66 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
     commands.push('exit');
     commands.push('exit');
     return commands.join('\n');
+}
+
+export function updateServiceCommand(params: {
+    portInfo: string;
+    onuId: string;
+    vlans: string;
+    mode: 'bridge' | 'route';
+    pppoeUser?: string;
+    pppoePass?: string;
+}) {
+    const interfacePort = params.portInfo.includes('gpon-olt_') 
+        ? params.portInfo.replace('gpon-olt_', 'gpon_onu-')
+        : params.portInfo.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-');
+        
+    const vlansList = params.vlans.toString().split(',').map(v => v.trim()).filter(Boolean);
+    const mainVlan = vlansList[0] || '125';
+    
+    let clearService = '';
+    let clearVport = '';
+    for (let i = 1; i <= 4; i++) {
+        clearService += `  no service ${i}\n`;
+        clearVport += `  no vport ${i}\n`;
+    }
+
+    let vportConfig = '';
+    let mngServiceConfig = '';
+    for (let i = 0; i < vlansList.length; i++) {
+        const idx = i + 1;
+        vportConfig += `  vport ${idx} map-type vlan\n  vport ${idx} bind-gemport 1\n`;
+        mngServiceConfig += `  service ${idx} vport ${idx} vlan ${vlansList[i]}\n`;
+    }
+
+    let portModeConfig = `  no wan-service 1\n`;
+    if (params.mode === 'bridge') {
+        if (vlansList.length > 1) {
+             portModeConfig += `  vlan port eth_0/1 mode hybrid def-vlan ${mainVlan} vlan ${vlansList.join(',')}`;
+        } else {
+             portModeConfig += `  vlan port eth_0/1 mode tag vlan ${mainVlan}`;
+        }
+    } else {
+         portModeConfig += `  wan-service 1 type internet vlan ${mainVlan}\n  pppoe 1 user ${params.pppoeUser || ''} password ${params.pppoePass || ''}`;
+         if (vlansList.length > 1) {
+             const extraVlans = vlansList.slice(1).join(',');
+             portModeConfig += `\n  vlan port eth_0/1 mode hybrid def-vlan ${vlansList[1]} vlan ${extraVlans}`;
+         }
+    }
+
+    return `
+configure terminal
+pon-onu-mng ${interfacePort}:${params.onuId}
+${clearService.trimEnd()}
+  no wan-service 1
+exit
+interface ${interfacePort}:${params.onuId}
+${clearVport.trimEnd()}
+${vportConfig.trimEnd()}
+exit
+pon-onu-mng ${interfacePort}:${params.onuId}
+${mngServiceConfig.trimEnd()}
+${portModeConfig}
+exit
+`;
 }

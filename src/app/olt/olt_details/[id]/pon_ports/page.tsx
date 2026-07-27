@@ -25,6 +25,61 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const handleRefresh = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/pon-ports/refresh`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to refresh PON ports');
+      }
+      setPorts(data.ports);
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+    // No need to set loading false on success here if we want to rely on the data being set, 
+    // but React state updates batching makes it fine.
+    setLoading(false);
+  };
+
+  const handleEnableAllPorts = async () => {
+    if (!confirm('WARNING: Are you sure you want to enable ALL PON ports? This will bring up any ports that were intentionally shut down.')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/pon-ports/enable-all`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(data.message);
+      handleRefresh();
+    } catch (err: any) {
+      alert(`Failed to enable ports: ${err.message}`);
+      setLoading(false);
+    }
+  };
+
+  const handleRebootOnusOnPort = async (portName: string) => {
+    if (!confirm(`DANGER: Are you sure you want to reboot ALL ONUs on port ${portName}? This will disrupt service for these customers.`)) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/pon-ports/${encodeURIComponent(portName)}/reboot-onus`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(data.message);
+    } catch (err: any) {
+      alert(`Failed to reboot ONUs: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPorts();
   }, [id]);
@@ -33,15 +88,15 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
     <div className="row">
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px' }}>
-          <button className="btn btn-primary" onClick={fetchPorts} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
-            Refresh PON ports info
+          <button className="btn btn-primary" onClick={handleRefresh} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
+            <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i> Refresh PON ports info
           </button>
-          <button className="btn btn-primary" style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
+          <button className="btn btn-primary" onClick={handleEnableAllPorts} disabled={loading} style={{ backgroundColor: '#286090', borderColor: '#204d74', marginRight: '5px' }}>
             Enable all PON ports
           </button>
-          <button className="btn btn-warning" style={{ backgroundColor: '#f0ad4e', borderColor: '#eea236', color: '#fff', marginRight: '5px' }}>
+          {/* <button className="btn btn-warning" style={{ backgroundColor: '#f0ad4e', borderColor: '#eea236', color: '#fff', marginRight: '5px' }}>
             Reboot all ONUs
-          </button>
+          </button> */}
           <button className="btn btn-info" style={{ backgroundColor: '#5bc0de', borderColor: '#46b8da', color: '#fff' }}>
             <i className="fa fa-crosshairs"></i> Rogue ONU detect
           </button>
@@ -152,7 +207,7 @@ export default function OltPonPortsPage({ params }: { params: Promise<{ id: stri
                         </td>
                         <td className="text-center" style={{ verticalAlign: 'middle', fontSize: '12px' }}>
                           <a href="#" style={{ color: '#337ab7', display: 'block', marginBottom: '4px', textDecoration: 'none' }}><i className="fa fa-plus-circle"></i> Configure</a>
-                          <a href="#" style={{ color: '#337ab7', display: 'block', textDecoration: 'none' }}><i className="fa fa-refresh"></i> Reboot ONUs</a>
+                          <a href="#" onClick={(e) => { e.preventDefault(); handleRebootOnusOnPort(port.name); }} style={{ color: '#337ab7', display: 'block', textDecoration: 'none' }}><i className="fa fa-refresh"></i> Reboot ONUs</a>
                         </td>
                       </tr>
                     </React.Fragment>

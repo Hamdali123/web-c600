@@ -41,11 +41,11 @@ export async function POST(request: Request) {
 
       try {
         if (action === 'reboot') {
-          await rebootOnu(creds, onu.pon_port, onu.onu_id);
+          await rebootOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
           await logActivity('Reboot ONU', `Rebooted SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;
         } else if (action === 'delete') {
-          await deleteOnu(creds, onu.pon_port, onu.onu_id);
+          await deleteOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
           await prisma.oNUConfigured.delete({ where: { id: onu.id } });
           await logActivity('Delete ONU', `Deleted SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;

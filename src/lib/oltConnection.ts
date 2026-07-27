@@ -76,7 +76,7 @@ export async function executeOltCommand(creds: OltCredentials, command: string):
            disableLogon: true
         });
 
-       const promptRegex = /[#>]\s*$/i;
+       const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
 
        // Try to send username directly assuming OLT already sent "Username: " prompt
        try {
@@ -157,7 +157,7 @@ export async function executeOltCommandBatch(creds: OltCredentials, commands: st
         await connection.connect({
            host: creds.ip, port: creds.port || 23, timeout: 180000, negotiationMandatory: false, disableLogon: true
         });
-       const promptRegex = /[#>]\s*$/i;
+       const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
        try {
            await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
        } catch (e) {
@@ -195,7 +195,7 @@ export async function authorizeOnu(creds: OltCredentials, params: {
     onuId: string;
     sn: string;
     name: string;
-    vlan: number;
+    vlan: string | number;
     mode: 'bridge' | 'route';
     pppoeUser?: string;
     pppoePass?: string;
@@ -322,13 +322,12 @@ export async function saveConfig(creds: OltCredentials) {
 }
 
 export async function getVlans(creds: OltCredentials) {
-  const { PrismaClient } = require('@prisma/client');
-  const prismaLocal = new PrismaClient();
-  const vlans = await prismaLocal.vLAN.findMany();
-  return vlans.map((v: any) => ({
-      id: v.vlan_id,
-      desc: v.description
-  }));
+    if (creds.vendor === 'zte') {
+        const output = await executeOltCommand(creds, ZteC600.getVlansCommand());
+        return ZteC600.parseVlans(output);
+    }
+    // Fallback if not ZTE or error
+    return [];
 }
 
 export function parseOltAttenuation(output: string) {
@@ -339,6 +338,7 @@ export function parseOltAttenuation(output: string) {
     let oltTx = '-40.0';
 
     for (const line of lines) {
+        // C320 format
         if (line.includes('ONU(')) {
             const parts = line.trim().split(/\s+/);
             if (parts.length >= 3) {
@@ -351,6 +351,22 @@ export function parseOltAttenuation(output: string) {
                 oltRx = parts[1];
                 oltTx = parts[2];
             }
+        }
+        
+        // C600 format
+        // up      Rx :-24.547(dbm)      Tx:2.372(dbm)        26.919(dB)
+        if (line.trim().startsWith('up') && line.includes('Rx')) {
+            const rxMatch = line.match(/Rx\s*:\s*([\-\d\.]+)/i);
+            const txMatch = line.match(/Tx\s*:\s*([\-\d\.]+)/i);
+            if (rxMatch) onuRx = rxMatch[1]; // Swap: Use OLT Rx as primary signal to match SmartOLT
+            if (txMatch) onuTx = txMatch[1];
+        }
+        // down    Tx :5.379(dbm)        Rx:-19.862(dbm)      25.241(dB)
+        if (line.trim().startsWith('down') && line.includes('Tx')) {
+            const txMatch = line.match(/Tx\s*:\s*([\-\d\.]+)/i);
+            const rxMatch = line.match(/Rx\s*:\s*([\-\d\.]+)/i);
+            if (txMatch) oltTx = txMatch[1];
+            if (rxMatch) oltRx = rxMatch[1]; // Swap: Store ONU Rx as oltRx
         }
     }
     

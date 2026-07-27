@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -23,7 +25,8 @@ export async function GET(request: Request) {
 
     const unconfiguredOnus = await prisma.oNUUnconfigured.findMany({
        where: filter,
-       include: { olt: true }
+       include: { olt: true },
+       orderBy: { discoveredAt: 'desc' }
     });
     return NextResponse.json(unconfiguredOnus);
   } catch (error) {

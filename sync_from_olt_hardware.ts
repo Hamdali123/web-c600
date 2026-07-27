@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { executeOltCommand, OltCredentials } from './src/lib/oltConnection';
+const { executeOltCommand } = require('./src/lib/oltConnection');
 
 const prisma = new PrismaClient();
 
@@ -11,7 +11,7 @@ async function main() {
   }
 
   const olt = olts[0];
-  const creds: OltCredentials = {
+  const creds = {
     ip: olt.ip_address,
     port: olt.telnet_port || 23,
     username: olt.telnet_user || '',
@@ -70,14 +70,23 @@ async function main() {
 
           const dbPonPort = `gpon-olt_${matchPort}`;
 
-          // Check if this ONU is already in the database
-          const existing = await prisma.oNUConfigured.findFirst({
+          // Check if this ONU is already in the database by SN MAC first, since it's unique
+          let existing = await prisma.oNUConfigured.findUnique({
             where: {
-              olt_id: olt.id,
-              pon_port: dbPonPort,
-              onu_id: onuId
+              sn_mac: sn
             }
           });
+
+          // If not found by SN, try checking if something exists on that port (shouldn't happen often if SN is unique, but fallback)
+          if (!existing) {
+             existing = await prisma.oNUConfigured.findFirst({
+               where: {
+                 olt_id: olt.id,
+                 pon_port: dbPonPort,
+                 onu_id: onuId
+               }
+             });
+          }
 
           const defaultName = `ONU-${matchPort}:${onuId}`;
 
@@ -87,6 +96,8 @@ async function main() {
               data: {
                 sn_mac: sn,
                 status: status,
+                pon_port: dbPonPort,
+                onu_id: onuId,
                 // Only update name if it starts with default ONU prefix to preserve custom names
                 name: existing.name.startsWith('ONU-') ? defaultName : existing.name
               }

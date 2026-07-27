@@ -20,10 +20,10 @@ export async function POST(
 
     const creds: OltCredentials = {
       ip: onu.olt.ip_address,
-      port: 23,
+      port: onu.olt.telnet_port || 23,
       username: onu.olt.telnet_user || '',
       password: onu.olt.telnet_pass || '',
-      protocol: 'telnet',
+      protocol: (onu.olt.protocol?.toLowerCase() as 'ssh' | 'telnet') || 'telnet',
       vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 

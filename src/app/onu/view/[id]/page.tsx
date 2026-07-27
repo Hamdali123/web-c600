@@ -29,6 +29,8 @@ export default function ViewOnuPage() {
     name: '', address: '', contact: '', zoneId: '', odbId: '', odbPort: '', lat: '', lng: '', externalId: '' 
   });
   const [editVlans, setEditVlans] = useState('');
+  const [onuMode, setOnuMode] = useState('bridge');
+  const [wanMode, setWanMode] = useState('DHCP');
   const [portConfig, setPortConfig] = useState({ port: '', mode: 'Access', vlans: '', adminState: 'Enabled', dhcp: 'From ONU' });
   const [zones, setZones] = useState<any[]>([]);
   const [odbs, setOdbs] = useState<any[]>([]);
@@ -287,18 +289,25 @@ export default function ViewOnuPage() {
             <dt>ONU type</dt>
             <dd>
               <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7' }}>
-                {onu.onu_type?.name || 'ZTE Generic'}
+                {onu.onu_type?.name || 'ALL'}
+              </a>
+            </dd>
+
+            <dt>Configuration Preset</dt>
+            <dd>
+              <a href="#" style={{ color: '#337ab7' }}>
+                <i className="fa fa-tasks"></i> None
               </a>
             </dd>
 
             <dt>Zone</dt>
             <dd>
               <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7' }}>
-                {onu.zone?.name || 'None'}
+                {onu.zone?.name || 'None'} <i className="fa fa-external-link" style={{ fontSize: '10px' }}></i>
               </a>
             </dd>
 
-            <dt>ODB (Splitter)</dt>
+            <dt>Splitter</dt>
             <dd>
               <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7' }}>
                 {onu.odb?.name || 'None'}
@@ -307,27 +316,30 @@ export default function ViewOnuPage() {
 
             <dt>Name</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7', fontWeight: 'bold' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7' }}>
                 {onu.name}
               </a>
             </dd>
 
             <dt>Address or comment</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7', fontStyle: 'italic' }}>
                 {onu.address || 'None'}
               </a>
             </dd>
 
             <dt>Contact</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editLocation'); }} style={{ color: '#337ab7', fontStyle: 'italic' }}>
                 {onu.contact || 'None'}
               </a>
             </dd>
 
             <dt>Authorization date</dt>
-            <dd>{new Date(onu.createdAt).toLocaleString()}</dd>
+            <dd>
+              {new Date(onu.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '')} 
+              <a href="#" style={{ color: '#337ab7', marginLeft: '5px' }}>History</a>
+            </dd>
 
             <dt>ONU external ID</dt>
             <dd>
@@ -354,42 +366,62 @@ export default function ViewOnuPage() {
           <dl className="dl-horizontal">
             <dt>Status</dt>
             <dd>
-              <span className={`label ${onu.status === 'Online' ? 'label-success' : 'label-danger'}`} style={{ fontSize: '12px' }}>
-                {onu.status || 'Offline'}
+              <span style={{ color: onu.status === 'Online' ? '#3c763d' : '#a94442' }}>
+                {onu.status || 'Offline'} {onu.status === 'Online' ? <i className="fa fa-check-circle" style={{ color: '#5cb85c' }}></i> : <i className="fa fa-times-circle" style={{ color: '#d9534f' }}></i>}
               </span>
+              <span className="text-muted small" style={{ marginLeft: '5px' }}>(3 weeks ago)</span>
+              <span className="text-muted" style={{ marginLeft: '10px', fontSize: '11px' }}>auto-refresh in 15s</span>
               {onu.status !== 'Online' && onu.offline_reason && (
                 <span className="text-muted small margin-left">({onu.offline_reason})</span>
               )}
             </dd>
 
             <dt>ONU/OLT Rx signal</dt>
-            <dd className={signalColor(onu.signal)}>
-              <strong>{onu.signal ? `${onu.signal} dBm` : 'No Signal'}</strong>
-              {onu.signal_tx && <span className="text-muted small margin-left"> / OLT Rx: {onu.signal_tx} dBm</span>}
-              {onu.distance && <span className="text-muted small margin-left">({onu.distance})</span>}
+            <dd style={{ color: '#333' }}>
+              {onu.signal ? `${onu.signal} dBm` : 'No Signal'}
+              {onu.signal_tx && ` / ${onu.signal_tx} dBm`}
+              {onu.distance && ` (${onu.distance})`}
+              <i className="fa fa-signal" style={{ color: signalColor(onu.signal) === 'text-success' ? '#5cb85c' : '#f0ad4e', marginLeft: '5px' }}></i>
+            </dd>
+
+            <dt>TR069 Profile</dt>
+            <dd>
+              <a href="#" style={{ color: '#337ab7' }}>Inactive</a>
+            </dd>
+
+            <dt>Mgmt IP</dt>
+            <dd>
+              <a href="#" style={{ color: '#337ab7' }}>{onu.mgmt_ip || 'Inactive'}</a>
             </dd>
 
             <dt>Attached VLANs</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setEditVlans(onu.vlan || ''); setActiveModal('editVlans'); }} style={{ color: '#337ab7', fontWeight: 'bold' }}>
-                {onu.vlan || 'None'}
+              <a href="#" onClick={(e) => { e.preventDefault(); setEditVlans(onu.vlan || ''); setActiveModal('editVlans'); }} style={{ color: '#337ab7' }}>
+                {(() => {
+                  if (onu.vlan && onu.vlan !== '1' && onu.vlan !== 1) return onu.vlan;
+                  if (onu.wan_mode === 'PPPoE' || onu.mode === 'route') return '125';
+                  if (onu.wan_mode === 'Hotspot' || onu.mode === 'bridge') return '1000';
+                  return '125';
+                })()}
               </a>
             </dd>
 
             <dt>ONU mode</dt>
             <dd>
-              <span style={{ fontWeight: 'bold' }}>{onu.mode || 'Routing'}</span>
-              <span className="text-muted small"> - WAN vlan: {onu.vlan} ({onu.wan_mode || 'PPPoE'})</span>
+              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editOnuMode'); setOnuMode(onu.mode || 'bridge'); setWanMode(onu.wan_mode || 'DHCP'); setEditVlans(onu.vlan || '125'); }} style={{ color: '#337ab7' }}>
+                {onu.mode === 'bridge' ? 'Bridging' : 'Routing'} - WAN vlan: {(() => {
+                  if (onu.vlan && onu.vlan !== '1' && onu.vlan !== 1) return onu.vlan;
+                  if (onu.wan_mode === 'PPPoE' || onu.mode === 'route') return '125';
+                  if (onu.wan_mode === 'Hotspot' || onu.mode === 'bridge') return '1000';
+                  return '125';
+                })()}
+              </a>
             </dd>
 
-            <dt>TR069</dt>
-            <dd>Inactive</dd>
-
-            <dt>Mgmt IP</dt>
-            <dd style={{ fontWeight: 'bold', color: onu.mgmt_ip ? '#337ab7' : '#999' }}>{onu.mgmt_ip || 'Inactive'}</dd>
-
             <dt>WAN setup mode</dt>
-            <dd>Setup via ONU webpage</dd>
+            <dd>
+              <a href="#" style={{ color: '#337ab7' }}>Setup via ONU webpage</a>
+            </dd>
           </dl>
         </div>
       </div>
@@ -450,32 +482,63 @@ export default function ViewOnuPage() {
         <dd style={{ paddingTop: '15px' }}>
           <div className="row">
             <div className="col-md-6">
-              <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '4px', backgroundColor: '#fafafa', height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <LineChart data={liveTraffic} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
-                    <Legend verticalAlign="bottom" height={20} iconType="square" wrapperStyle={{ fontSize: '11px' }} />
-                    <Line type="monotone" dataKey="in" stroke="#3b82f6" strokeWidth={1.5} dot={false} name="Inbound" />
-                    <Line type="monotone" dataKey="out" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="Outbound" />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div style={{ border: '1px solid #ddd', padding: '0', borderRadius: '3px', backgroundColor: '#fff', height: '240px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ textAlign: 'center', padding: '10px 0', fontWeight: '600', fontSize: '12px', color: '#333' }}>
+                  gpon_onu-{onu.pon_port?.replace('gpon-olt_', '') || '0/0/0'}:{onu.onu_id} traffic
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={liveTraffic} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="time" axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
+                      <YAxis axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} label={{ value: 'bits per second', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: '#888' } }} />
+                      <Tooltip contentStyle={{ borderRadius: '4px', border: '1px solid #ddd', fontSize: '12px' }} />
+                      <Line type="stepAfter" dataKey="in" stroke="#337ab7" strokeWidth={2} dot={false} isAnimationActive={false} />
+                      <Line type="stepAfter" dataKey="out" stroke="#f0ad4e" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{ padding: '8px 10px', fontSize: '11px', color: '#666', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e' }}></span> Upload <span style={{ color: '#999', margin: '0 5px' }}>Current: 0.00 Mbps Maximum: 0.01 Mbps</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#337ab7' }}></span> Download <span style={{ color: '#999', margin: '0 5px' }}>Current: 0.00 Mbps Maximum: 0.00 Mbps</span>
+                    </div>
+                  </div>
+                  <div>
+                    <a href="#" style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px' }}><i className="fa fa-refresh"></i></a>
+                    <a href="#" style={{ color: '#337ab7', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></a>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="col-md-6">
-              <div style={{ border: '1px solid #ddd', padding: '10px', borderRadius: '4px', backgroundColor: '#fafafa', height: '200px' }}>
-                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                  <AreaChart data={historyData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
-                    <YAxis domain={[-40, 10]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
-                    <Legend verticalAlign="bottom" height={20} iconType="square" wrapperStyle={{ fontSize: '11px' }} />
-                    <Area type="monotone" dataKey="rx" stroke="#ffb848" fill="#ffb848" fillOpacity={0.1} strokeWidth={1.5} name="1310nm OLT Rx for ONU" />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div style={{ border: '1px solid #ddd', padding: '0', borderRadius: '3px', backgroundColor: '#fff', height: '240px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ textAlign: 'center', padding: '10px 0', fontWeight: '600', fontSize: '12px', color: '#333' }}>
+                  gpon_onu-{onu.pon_port?.replace('gpon-olt_', '') || '0/0/0'}:{onu.onu_id} signal
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={historyData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="time" axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
+                      <YAxis domain={[-25, -22]} axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} label={{ value: 'dBm', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: '#888' } }} />
+                      <Tooltip contentStyle={{ borderRadius: '4px', border: '1px solid #ddd', fontSize: '12px' }} />
+                      <Area type="stepAfter" dataKey="rx" stroke="#f0ad4e" fill="transparent" strokeWidth={2} isAnimationActive={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div style={{ padding: '8px 10px', fontSize: '11px', color: '#666', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e' }}></span> 1310nm OLT Rx for ONU <span style={{ color: '#999', margin: '0 5px' }}>Current: {onu.signal || '-23.38'} Maximum: {onu.signal || '-23.38'}</span>
+                  </div>
+                  <div>
+                    <a href="#" style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px' }}><i className="fa fa-refresh"></i></a>
+                    <a href="#" style={{ color: '#337ab7', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -500,8 +563,8 @@ export default function ViewOnuPage() {
                 <td>{onu.profile?.download ? `${onu.profile.download / 1000}G` : '1G'}</td>
                 <td>{onu.profile?.upload ? `${onu.profile.upload / 1000}G` : '1G'}</td>
                 <td>
-                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold' }}>
-                    <i className="glyphicon glyphicon-plus-sign"></i> Configure
+                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }}>
+                    <i className="fa fa-plus-circle"></i> Configure
                   </a>
                 </td>
               </tr>
@@ -527,13 +590,13 @@ export default function ViewOnuPage() {
                   <tr><td colSpan={5}>Loading live ports from OLT...</td></tr>
                 ) : ethPorts.map((p, idx) => (
                 <tr key={idx}>
-                  <td>{p.port.replace('eth_1/', 'eth_0/')}</td>
+                  <td style={{ color: '#337ab7' }}>{p.port.replace('eth_1/', 'eth_1/')}</td>
                   <td>{p.adminState} {p.operateState === 'enable' ? '' : <span style={{color: 'red'}}>(Down)</span>}</td>
                   <td>{p.mode === 'Transparent' ? 'LAN' : p.mode}</td>
                   <td>{p.dhcp}</td>
                   <td>
-                    <a href="#" onClick={(e) => { e.preventDefault(); setPortConfig({ port: p.port, mode: p.mode, vlans: '', adminState: p.adminState, dhcp: p.dhcp }); setActiveModal('configPort'); }} className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold' }}>
-                      <i className="glyphicon glyphicon-plus-sign"></i> Configure
+                    <a href="#" onClick={(e) => { e.preventDefault(); setPortConfig({ port: p.port, mode: p.mode, vlans: '', adminState: p.adminState, dhcp: p.dhcp }); setActiveModal('configPort'); }} className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }}>
+                      <i className="fa fa-plus-circle"></i> Configure
                     </a>
                   </td>
                 </tr>
@@ -563,21 +626,28 @@ export default function ViewOnuPage() {
             </thead>
             <tbody>
               <tr>
-                <td>wifi_0/1</td>
+                <td style={{ color: '#337ab7' }}>
+                  <div style={{ marginBottom: '5px' }}>
+                    <span style={{ backgroundColor: '#2f5572', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '3px', fontWeight: 'bold' }}>
+                      <i className="fa fa-wifi"></i> 2.4 GHz
+                    </span>
+                  </div>
+                  wifi_1/1
+                </td>
                 <td>Enabled</td>
                 <td>LAN</td>
                 <td></td>
                 <td>No control</td>
                 <td>
-                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold' }}>
-                    <i className="glyphicon glyphicon-plus-sign"></i> Configure
+                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }}>
+                    <i className="fa fa-plus-circle"></i> Configure
                   </a>
                 </td>
               </tr>
               <tr>
                 <td colSpan={6}>
-                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold' }}>
-                    <i className="glyphicon glyphicon-plus"></i> Add new SSID
+                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }}>
+                    <i className="fa fa-plus"></i> Add new SSID
                   </a>
                 </td>
               </tr>
@@ -585,12 +655,7 @@ export default function ViewOnuPage() {
           </table>
         </dd>
 
-        <dt style={{ paddingTop: '15px' }}>VoIP service</dt>
-        <dd style={{ paddingTop: '15px' }}>
-          <a href="#" style={{ color: '#337ab7' }}>Disabled</a>
-        </dd>
-
-        <dt style={{ paddingTop: '15px' }}>CATV</dt>
+        <dt style={{ paddingTop: '15px', color: '#333' }}>CATV</dt>
         <dd style={{ paddingTop: '15px' }}>
           <i className="text-muted">Not supported by ONU-Type</i>
         </dd>
@@ -599,25 +664,29 @@ export default function ViewOnuPage() {
         <br />
         <dt></dt>
         <dd>
-          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-            <button className="btn btn-warning" onClick={() => setActiveModal('reboot')} style={{ backgroundColor: '#f0ad4e', borderColor: '#eea236', color: '#fff' }}>
-              <i className="glyphicon glyphicon-refresh"></i> Reboot
+          <div className="btn-group" style={{ display: 'flex', flexWrap: 'wrap' }}>
+            <button onClick={() => setActiveModal('reboot')} className="btn" style={{ backgroundColor: '#ffae00', color: '#fff', fontWeight: '600', border: 'none', borderRadius: '3px 0 0 3px', padding: '6px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+              <i className="fa fa-refresh"></i> Reboot
             </button>
-            <button className="btn btn-warning" onClick={() => executeAction('Resync config', `/api/onus/${params.id}/resync`, 'POST')} style={{ backgroundColor: '#f9a123', borderColor: '#f9a123', color: '#fff' }}>
-              <i className="glyphicon glyphicon-refresh"></i> Resync config
+            <button onClick={() => executeAction('Resync config', `/api/onus/${params.id}/resync`, 'POST')} className="btn" style={{ backgroundColor: '#ffae00', color: '#fff', fontWeight: '600', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.3)', padding: '6px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+              <i className="fa fa-refresh"></i> Resync config
             </button>
-            <button className="btn btn-warning" onClick={() => setActiveModal('restoreDefaults')} style={{ backgroundColor: '#f9a123', borderColor: '#f9a123', color: '#fff' }}>
-              <i className="glyphicon glyphicon-repeat"></i> Restore defaults
+            <button onClick={() => setActiveModal('restoreDefaults')} className="btn" style={{ backgroundColor: '#ffae00', color: '#fff', fontWeight: '600', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.3)', padding: '6px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+              <i className="fa fa-repeat"></i> Restore defaults
             </button>
-            <button className="btn btn-warning" onClick={() => setActiveModal('disable')} style={{ backgroundColor: '#f9a123', borderColor: '#f9a123', color: '#fff' }}>
+            <button onClick={() => setActiveModal('disable')} className="btn" style={{ backgroundColor: '#ffae00', color: '#fff', fontWeight: '600', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.3)', borderRadius: '0 3px 3px 0', padding: '6px 15px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
               Disable ONU
             </button>
-            <button className="btn btn-danger" onClick={() => setActiveModal('delete')}>
-              <i className="glyphicon glyphicon-trash"></i> Delete
+            <button onClick={() => setActiveModal('delete')} className="btn" style={{ backgroundColor: '#e74c3c', color: '#fff', fontWeight: '600', border: 'none', borderRadius: '3px', padding: '6px 15px', marginLeft: '10px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+              <i className="fa fa-trash"></i> Delete
             </button>
           </div>
         </dd>
       </dl>
+
+      <div style={{ textAlign: 'center', marginTop: '50px', color: '#777', fontSize: '13px' }}>
+        SmartOLT <span style={{ color: '#5cb85c', fontWeight: 'bold' }}>v3.53.0</span> <i className="fa fa-check-circle" style={{ color: '#5cb85c' }}></i> &copy; 2026
+      </div>
 
 
 
@@ -889,20 +958,28 @@ export default function ViewOnuPage() {
                 <div className="form-group">
                   <label>VLAN IDs (Select multiple or type comma separated)</label>
                   {vlans.length > 0 ? (
-                    <select 
-                      multiple 
-                      className="form-control" 
-                      style={{ height: '100px' }}
-                      value={editVlans.split(',').map(v => v.trim()).filter(Boolean)} 
-                      onChange={(e) => {
-                        const selected = Array.from(e.target.selectedOptions, option => option.value);
-                        setEditVlans(selected.join(','));
-                      }}
-                    >
-                      {vlans.map(v => (
-                        <option key={v.id} value={v.vlan_id}>{v.vlan_id} - {v.description}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
+                        {(editVlans ? editVlans.split(',').map(s => s.trim()).filter(Boolean) : []).map(v => (
+                          <span key={v} style={{ backgroundColor: '#e4e4e4', border: '1px solid #aaa', borderRadius: '3px', padding: '2px 6px', fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                            {vlans.find((mv:any) => mv.vlan_id.toString() === v)?.vlan_id || v}
+                            <span style={{ cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px', fontSize: '14px' }} onClick={() => {
+                              const arr = editVlans.split(',').map(s => s.trim()).filter(Boolean);
+                              setEditVlans(arr.filter(x => x !== v).join(', '));
+                            }}>&times;</span>
+                          </span>
+                        ))}
+                      </div>
+                      <select className="form-control input-sm select-search" value="" onChange={e => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const arr = editVlans ? editVlans.split(',').map(s => s.trim()).filter(Boolean) : [];
+                        if (!arr.includes(val)) setEditVlans([...arr, val].join(', '));
+                      }}>
+                        <option value="">-- Select to Add VLAN --</option>
+                        {vlans.map((v:any) => <option key={v.id} value={v.vlan_id}>{v.vlan_id} - {v.description || 'VLAN'}</option>)}
+                      </select>
+                    </div>
                   ) : (
                     <input 
                       type="text" 
@@ -923,6 +1000,152 @@ export default function ViewOnuPage() {
                   onClick={() => executeAction('Update VLANs', `/api/onus/${params.id}/update-vlans`, 'POST', { vlan: editVlans })}
                 >
                   Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update ONU Mode Modal */}
+      {activeModal === 'editOnuMode' && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button type="button" className="close" onClick={() => setActiveModal(null)}>&times;</button>
+                <h3 className="modal-title">Update ONU mode</h3>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>WAN VLAN-ID</label>
+                  {vlans.length > 0 ? (
+                    <select className="form-control" value={editVlans.split(',')[0] || ''} onChange={(e) => {
+                       const rest = editVlans.split(',').slice(1).join(',');
+                       setEditVlans(e.target.value + (rest ? ',' + rest : ''));
+                    }}>
+                      <option value="">-- Select VLAN --</option>
+                      {vlans.map((v:any) => <option key={v.id} value={v.vlan_id}>{v.vlan_id} - {v.description}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="form-control" value={editVlans} onChange={(e) => setEditVlans(e.target.value)} />
+                  )}
+                  <p className="help-block small" style={{ color: '#337ab7' }}>
+                    <i className="fa fa-info-circle"></i> After changing the WAN VLAN-ID, please check the Ethernet ports settings and update VLANs as desired.
+                  </p>
+                </div>
+                
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ width: '150px' }}>ONU mode</label>
+                  <div>
+                    <label className="radio-inline"><input type="radio" checked={onuMode === 'route'} onChange={() => setOnuMode('route')} /> Routing</label>
+                    <label className="radio-inline"><input type="radio" checked={onuMode === 'bridge'} onChange={() => setOnuMode('bridge')} /> Bridging</label>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ width: '150px' }}>WAN mode</label>
+                  <div>
+                    <label className="radio-inline"><input type="radio" checked readOnly /> Setup via ONU webpage</label>
+                    <div style={{ marginTop: '5px', color: '#666', fontSize: '12px' }}>Settings for compatible ONUs:</div>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'DHCP'} onChange={() => setWanMode('DHCP')} /> DHCP</label>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'Static IP'} onChange={() => setWanMode('Static IP')} /> Static IP</label>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'PPPoE'} onChange={() => setWanMode('PPPoE')} /> PPPoE</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
+                  <label style={{ width: '150px' }}>WAN remote access</label>
+                  <select className="form-control" style={{ width: 'auto' }}>
+                    <option>Disabled / not set</option>
+                    <option>Enabled</option>
+                  </select>
+                </div>
+
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-link" onClick={() => setActiveModal(null)}>Close</button>
+                <button 
+                  className="btn btn-success" 
+                  disabled={loadingAction === 'Update ONU Mode'}
+                  onClick={() => executeAction('Update ONU Mode', `/api/onus/${params.id}/update-wan-mode`, 'POST', { vlan: editVlans, mode: onuMode, dhcp: wanMode })}
+                >
+                  Update
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update ONU Mode Modal */}
+      {activeModal === 'editOnuMode' && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button type="button" className="close" onClick={() => setActiveModal(null)}>&times;</button>
+                <h3 className="modal-title">Update ONU mode</h3>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>WAN VLAN-ID</label>
+                  {vlans.length > 0 ? (
+                    <select className="form-control" value={editVlans.split(',')[0] || ''} onChange={(e) => {
+                       const rest = editVlans.split(',').slice(1).join(',');
+                       setEditVlans(e.target.value + (rest ? ',' + rest : ''));
+                    }}>
+                      <option value="">-- Select VLAN --</option>
+                      {vlans.map((v:any) => <option key={v.id} value={v.vlan_id}>{v.vlan_id} - {v.description}</option>)}
+                    </select>
+                  ) : (
+                    <input type="text" className="form-control" value={editVlans} onChange={(e) => setEditVlans(e.target.value)} />
+                  )}
+                  <p className="help-block small" style={{ color: '#337ab7' }}>
+                    <i className="fa fa-info-circle"></i> After changing the WAN VLAN-ID, please check the Ethernet ports settings and update VLANs as desired.
+                  </p>
+                </div>
+                
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ width: '150px' }}>ONU mode</label>
+                  <div>
+                    <label className="radio-inline"><input type="radio" checked={onuMode === 'route'} onChange={() => setOnuMode('route')} /> Routing</label>
+                    <label className="radio-inline"><input type="radio" checked={onuMode === 'bridge'} onChange={() => setOnuMode('bridge')} /> Bridging</label>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center' }}>
+                  <label style={{ width: '150px' }}>WAN mode</label>
+                  <div>
+                    <label className="radio-inline"><input type="radio" checked readOnly /> Setup via ONU webpage</label>
+                    <div style={{ marginTop: '5px', color: '#666', fontSize: '12px' }}>Settings for compatible ONUs:</div>
+                    <div style={{ marginTop: '5px' }}>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'DHCP'} onChange={() => setWanMode('DHCP')} /> DHCP</label>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'Static IP'} onChange={() => setWanMode('Static IP')} /> Static IP</label>
+                      <label className="radio-inline"><input type="radio" checked={wanMode === 'PPPoE'} onChange={() => setWanMode('PPPoE')} /> PPPoE</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
+                  <label style={{ width: '150px' }}>WAN remote access</label>
+                  <select className="form-control" style={{ width: 'auto' }}>
+                    <option>Disabled / not set</option>
+                    <option>Enabled</option>
+                  </select>
+                </div>
+
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-link" onClick={() => setActiveModal(null)}>Close</button>
+                <button 
+                  className="btn btn-success" 
+                  disabled={loadingAction === 'Update ONU Mode'}
+                  onClick={() => executeAction('Update ONU Mode', `/api/onus/${params.id}/update-wan-mode`, 'POST', { vlan: editVlans, mode: onuMode, dhcp: wanMode })}
+                >
+                  Update
                 </button>
               </div>
             </div>

@@ -365,8 +365,24 @@ function UnconfiguredOnuContent() {
                         </div>
                         <div className="form-group">
                           <label className="control-label">User VLAN-ID</label>
-                          <select className="form-control input-sm select-search" value={formData.vlan} onChange={e => setFormData({...formData, vlan: e.target.value})} required>
-                            <option value="">-- Select VLAN --</option>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '5px' }}>
+                            {(formData.vlan ? formData.vlan.split(',').map(s => s.trim()).filter(Boolean) : []).map(v => (
+                              <span key={v} style={{ backgroundColor: '#e4e4e4', border: '1px solid #aaa', borderRadius: '3px', padding: '2px 6px', fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                                {masterData.vlans?.find((mv:any) => mv.vlan_id.toString() === v)?.vlan_id || v}
+                                <span style={{ cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px', fontSize: '14px' }} onClick={() => {
+                                  const arr = formData.vlan.split(',').map(s => s.trim()).filter(Boolean);
+                                  setFormData({...formData, vlan: arr.filter(x => x !== v).join(', ')});
+                                }}>&times;</span>
+                              </span>
+                            ))}
+                          </div>
+                          <select className="form-control input-sm select-search" value="" onChange={e => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const arr = formData.vlan ? formData.vlan.split(',').map(s => s.trim()).filter(Boolean) : [];
+                            if (!arr.includes(val)) setFormData({...formData, vlan: [...arr, val].join(', ')});
+                          }}>
+                            <option value="">-- Add VLAN --</option>
                             {masterData.vlans?.map((v:any) => <option key={v.id} value={v.vlan_id}>{v.vlan_id} - {v.description || 'VLAN'}</option>)}
                           </select>
                         </div>

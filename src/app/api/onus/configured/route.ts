@@ -79,11 +79,11 @@ export async function GET(request: Request) {
     if (signalStatus) {
        whereClause.status = 'Online';
        if (signalStatus === 'good') {
-         whereClause.signal = { gt: -25 };
+         whereClause.signal = { gt: -30 };
        } else if (signalStatus === 'warning') {
-         whereClause.signal = { lte: -25, gt: -28 };
+         whereClause.signal = { lte: -30, gt: -33 };
        } else if (signalStatus === 'critical') {
-         whereClause.signal = { lte: -28 };
+         whereClause.signal = { lte: -33 };
        }
     }
 

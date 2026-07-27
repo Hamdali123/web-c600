@@ -2,16 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
 export default function GraphsPage() {
   const [olts, setOlts] = useState<any[]>([]);
   const [selectedOlt, setSelectedOlt] = useState('Any');
   const [category, setCategory] = useState('OLT');
+  const [board, setBoard] = useState('Any');
+  const [port, setPort] = useState('Any');
+  const [zone, setZone] = useState('Any');
+  const [splitter, setSplitter] = useState('Any');
+  
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<any>({ totalOnus: 0, totalTraffic: 0 });
+  const [summary, setSummary] = useState<any>({ totalOnus: 0 });
 
   useEffect(() => {
     fetch('/api/settings/olt')
@@ -22,11 +27,11 @@ export default function GraphsPage() {
   const fetchGraphData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/graphs?oltId=${selectedOlt}&category=${category}`);
+      const res = await fetch(`/api/graphs?oltId=${selectedOlt}&category=${category}&board=${board}&port=${port}&zone_id=${zone}&odb_id=${splitter}`);
       const data = await res.json();
       if (data.success) {
         setChartData(data.chartData || []);
-        setSummary(data.summary || { totalOnus: 0, totalTraffic: 0 });
+        setSummary(data.summary || { totalOnus: 0 });
       }
     } catch (e) {
       console.error(e);
@@ -36,66 +41,142 @@ export default function GraphsPage() {
 
   useEffect(() => {
     fetchGraphData();
-  }, [selectedOlt, category]);
+  }, [selectedOlt, category, board, port, zone, splitter]);
 
-  const selectedOltObj = olts.find(o => o.id.toString() === selectedOlt);
-  const displayName = selectedOltObj ? selectedOltObj.name : 'All OLTs';
+  const renderGridChart = (chart: any) => {
+    if (chart.type === 'line' || chart.type === 'Signal') {
+      const isSignal = chart.type === 'Signal';
+      const dataKey = isSignal ? 'signal' : chart.dataKey;
+      const unit = isSignal ? 'dBm' : chart.unit;
+      const color = isSignal ? '#f39c12' : chart.color; // Orange for signal
+      const yDomain = isSignal ? [-40, -10] : ['auto', 'auto'];
 
-  const renderAreaGraph = (title: string, dataKey: string, unit: string, color: string) => {
-    if (chartData.length === 0) return null;
-    const currentVal = chartData[chartData.length - 1][dataKey] || 0;
-    const maxVal = Math.max(...chartData.map(d => d[dataKey] || 0));
-
-    return (
-      <div className="col-md-6" style={{ marginBottom: '30px' }}>
-        <div className="panel panel-default">
-          <div className="panel-heading" style={{ backgroundColor: '#fdfdfd' }}>
-            <small className="text-muted">{displayName}</small>
-            <h5 style={{ margin: '5px 0', fontWeight: 'bold' }}>{title}</h5>
+      if (isSignal) {
+        const maxVal = Math.max(...chart.data.map((d: any) => d.signal));
+        const currentVal = chart.data[chart.data.length - 1].signal;
+        
+        return (
+          <div key={chart.id} className="col-md-6" style={{ marginBottom: '30px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+              <span style={{ color: '#337ab7' }}>{chart.title}</span><br/>
+              <small className="text-muted">{chart.subtitle}</small>
+            </div>
+            <div style={{ backgroundColor: '#f5f5f5', border: '1px solid #ddd', padding: '10px', paddingBottom: '0', height: '180px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chart.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" fontSize={10} axisLine={{ stroke: '#999' }} tickLine={false} />
+                  <YAxis fontSize={10} axisLine={{ stroke: '#999' }} tickLine={false} domain={yDomain} />
+                  <Tooltip />
+                  <Line type="stepAfter" dataKey={dataKey} name="1310nm OLT Rx for ONU" stroke={color} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderTop: 'none', padding: '5px 10px', fontSize: '11px', color: '#555' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#f39c12', marginRight: '5px' }}></span>
+              1310nm OLT Rx for ONU &nbsp;&nbsp;&nbsp; Current: <strong>{currentVal}</strong> &nbsp;&nbsp; Maximum: <strong>{maxVal}</strong>
+            </div>
           </div>
-          <div className="panel-body" style={{ height: '230px' }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id={`color${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={color} stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor={color} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+        );
+      } else {
+        const maxVal = Math.max(...chart.data.map((d: any) => d.value));
+        const currentVal = chart.data[chart.data.length - 1].value;
+        
+        return (
+          <div key={chart.id} className="col-md-6" style={{ marginBottom: '30px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+              <span style={{ color: '#337ab7' }}>{chart.title}</span><br/>
+              <small className="text-muted">{chart.subtitle}</small>
+            </div>
+            <div style={{ backgroundColor: '#f5f5f5', border: '1px solid #ddd', padding: '10px', paddingBottom: '0', height: '180px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chart.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" fontSize={10} axisLine={{ stroke: '#999' }} tickLine={false} />
+                  <YAxis fontSize={10} axisLine={{ stroke: '#999' }} tickLine={false} />
+                  <Tooltip />
+                  <Line type="stepAfter" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderTop: 'none', padding: '5px 10px', fontSize: '11px', color: '#555' }}>
+              <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#188ae2', marginRight: '5px' }}></span>
+              Usage &nbsp;&nbsp;&nbsp; Current: <strong>{currentVal} {unit}</strong> &nbsp;&nbsp; Maximum: <strong>{maxVal} {unit}</strong>
+            </div>
+          </div>
+        );
+      }
+    } else if (chart.type === 'Traffic') {
+      const maxUp = Math.max(...chart.data.map((d: any) => d.upload));
+      const currUp = chart.data[chart.data.length - 1].upload;
+      const maxDown = Math.max(...chart.data.map((d: any) => d.download));
+      const currDown = chart.data[chart.data.length - 1].download;
+
+      const formatYAxis = (tickItem: any) => {
+        if (tickItem >= 1000) return (tickItem / 1000).toFixed(1) + ' G';
+        if (tickItem >= 1) return tickItem.toFixed(1) + ' M';
+        if (tickItem > 0) return (tickItem * 1000).toFixed(0) + ' k';
+        return '0.0';
+      };
+
+      const formatValue = (val: number) => {
+        if (val >= 1000) return (val / 1000).toFixed(2) + ' G';
+        if (val >= 1) return val.toFixed(2) + ' M';
+        return (val * 1000).toFixed(2) + ' k';
+      };
+
+      return (
+        <div key={chart.id} className="col-md-6" style={{ marginBottom: '30px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+            <span style={{ color: '#337ab7' }}>{chart.title}</span><br/>
+            <small className="text-muted">{chart.subtitle}</small>
+          </div>
+          <div style={{ backgroundColor: '#f9f9f9', border: '1px solid #ddd', padding: '10px 10px 0 0', height: '180px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chart.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="time" fontSize={10} />
-                <YAxis fontSize={10} unit={unit} />
-                <Tooltip />
-                <Area type="monotone" dataKey={dataKey} stroke={color} fillOpacity={1} fill={`url(#color${dataKey})`} strokeWidth={2} />
+                <XAxis dataKey="time" fontSize={10} axisLine={{ stroke: '#666' }} tickLine={false} />
+                <YAxis fontSize={10} axisLine={{ stroke: '#666' }} tickLine={false} tickFormatter={formatYAxis} width={65} label={{ value: 'bits per second', angle: -90, position: 'insideLeft', offset: 15, fontSize: 11, fill: '#333' }} />
+                <Tooltip formatter={(value: any) => formatValue(Number(value))} />
+                <Area type="stepAfter" dataKey="download" name="Download" stroke="#3498db" fillOpacity={1} fill="#e6e6e6" strokeWidth={2} />
+                <Area type="stepAfter" dataKey="upload" name="Upload" stroke="#f39c12" fillOpacity={0} strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <div className="panel-footer small text-muted">
-            Current: {currentVal} {unit} | Maximum: {maxVal} {unit}
+          <div style={{ backgroundColor: '#fff', border: '1px solid #ddd', borderTop: 'none', padding: '5px 10px', fontSize: '11px', color: '#555' }}>
+            <div style={{ display: 'inline-block', width: '50%' }}>
+              <span style={{ display: 'inline-block', width: '0', height: '0', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #f39c12', marginRight: '5px' }}></span>
+              Upload &nbsp;&nbsp;&nbsp; Current: <strong>{formatValue(currUp)}</strong> &nbsp;&nbsp; Maximum: <strong>{formatValue(maxUp)}</strong>
+            </div>
+            <div style={{ display: 'inline-block', width: '50%' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#3498db', marginRight: '5px' }}></span>
+              Download &nbsp;&nbsp;&nbsp; Current: <strong>{formatValue(currDown)}</strong> &nbsp;&nbsp; Maximum: <strong>{formatValue(maxDown)}</strong>
+            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   };
 
   return (
     <div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
-        <div style={{ width: '200px' }}>
-          <label className="small text-muted">OLTs</label>
-          <select className="form-control" value={selectedOlt} onChange={e => setSelectedOlt(e.target.value)}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center', marginBottom: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label className="small text-muted" style={{ margin: 0 }}>OLTs</label>
+          <select className="form-control input-sm" style={{ width: '150px' }} value={selectedOlt} onChange={e => setSelectedOlt(e.target.value)}>
             <option value="Any">Any</option>
             {olts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </div>
         
-        <div style={{ marginTop: '20px' }}>
-          <span className="text-muted" style={{ marginRight: '10px' }}>Graphs for</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span className="text-muted small">Graphs for</span>
           <div className="btn-group">
             {['OLT', 'Uplink', 'PON', 'Traffic', 'Signal'].map(cat => (
               <button 
                 key={cat}
-                className={`btn btn-default ${category === cat ? 'active' : ''}`}
+                className={`btn btn-sm btn-default ${category === cat ? 'active' : ''}`}
                 onClick={() => setCategory(cat)}
               >
                 {cat}
@@ -105,63 +186,52 @@ export default function GraphsPage() {
         </div>
       </div>
 
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center', marginBottom: '25px', padding: '10px', backgroundColor: '#f9f9f9', border: '1px solid #eee' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label className="small text-muted" style={{ margin: 0 }}>Board</label>
+          <select className="form-control input-sm" style={{ width: '100px' }} value={board} onChange={e => setBoard(e.target.value)}>
+            <option value="Any">Any</option>
+            <option value="1/1">1/1</option>
+            <option value="1/2">1/2</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label className="small text-muted" style={{ margin: 0 }}>Port</label>
+          <select className="form-control input-sm" style={{ width: '100px' }} value={port} onChange={e => setPort(e.target.value)}>
+            <option value="Any">Any</option>
+            {[...Array(16)].map((_, i) => <option key={i} value={`1/2/${i+1}`}>1/2/{i+1}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label className="small text-muted" style={{ margin: 0 }}>Zone</label>
+          <select className="form-control input-sm" style={{ width: '120px' }} value={zone} onChange={e => setZone(e.target.value)}>
+            <option value="Any">Any</option>
+            <option value="1">Zone 1</option>
+            <option value="2">Zone 2</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label className="small text-muted" style={{ margin: 0 }}>Splitter</label>
+          <select className="form-control input-sm" style={{ width: '120px' }} value={splitter} onChange={e => setSplitter(e.target.value)}>
+            <option value="Any">Any</option>
+            <option value="1">Splitter 1</option>
+          </select>
+        </div>
+      </div>
+
       {loading ? (
         <div className="text-center" style={{ padding: '80px 0' }}>
           <i className="fa fa-spinner fa-spin fa-3x text-muted"></i>
           <p className="text-muted" style={{ marginTop: '10px' }}>Loading graph metrics...</p>
         </div>
       ) : (
-        <div>
-          {category === 'OLT' && (
-            <div className="row">
-              {renderAreaGraph('Daily OLT environment temperature', 'temp', '°C', '#337ab7')}
-              {renderAreaGraph('GFGN card in slot 2 daily CPU usage', 'cpuSlot2', '%', '#f0ad4e')}
-              {renderAreaGraph('SFUB card in slot 10 daily CPU usage', 'cpuSlot10', '%', '#5cb85c')}
+        <div className="row">
+          {chartData.length === 0 ? (
+            <div className="col-md-12 text-center text-muted" style={{ padding: '40px' }}>
+              No graphs found for the selected filters.
             </div>
-          )}
-
-          {(category === 'Traffic' || category === 'PON' || category === 'Uplink') && (
-            <div className="row">
-              {renderAreaGraph(`${category} download usage`, 'download', ' Mbps', '#5cb85c')}
-              {renderAreaGraph(`${category} upload usage`, 'upload', ' Mbps', '#f0ad4e')}
-            </div>
-          )}
-
-          {category === 'Signal' && (
-            <div className="row">
-              <div className="col-md-8 col-md-offset-2">
-                <div className="panel panel-default">
-                  <div className="panel-heading" style={{ backgroundColor: '#fdfdfd', fontWeight: 'bold' }}>
-                    ONU Rx Signal Strength Distribution ({displayName})
-                  </div>
-                  <div className="panel-body" style={{ height: '350px' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                      <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" fontSize={11} />
-                        <YAxis allowDecimals={false} fontSize={11} />
-                        <Tooltip />
-                        <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                          {chartData.map((entry, index) => {
-                            let barColor = '#4db14b'; // Excellent / Good: green
-                            if (index === 2) barColor = '#f7a127'; // Warning: orange
-                            if (index === 3) barColor = '#d9534f'; // Critical: red
-                            return <Cell key={`cell-${index}`} fill={barColor} />;
-                          })}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="panel-footer small text-muted text-center">
-                    Total configured ONUs: <strong>{summary.totalOnus}</strong> | 
-                    Excellent: <strong>{summary.signalDistribution?.excellent}</strong> | 
-                    Good: <strong>{summary.signalDistribution?.good}</strong> | 
-                    Warning: <strong>{summary.signalDistribution?.warning}</strong> | 
-                    Critical: <strong>{summary.signalDistribution?.critical}</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
+          ) : (
+            chartData.map(renderGridChart)
           )}
         </div>
       )}

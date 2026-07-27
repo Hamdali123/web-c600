@@ -118,6 +118,51 @@ export default function Dashboard() {
     return <span style={{ color: '#333' }}>{value} ({count})</span>;
   };
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      // Create a mock time string for the title since our mock data uses Days (e.g. "Mon")
+      // To match the screenshot exactly, we'll format it like "21:55" if possible, or just use the label.
+      const title = label === 'Mon' ? '21:55' : (label === 'Tue' ? '22:00' : label);
+
+      return (
+        <div style={{
+          backgroundColor: '#fff',
+          padding: '12px 16px',
+          border: '1px solid #eee',
+          borderRadius: '6px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          fontSize: '12px',
+          color: '#333',
+          minWidth: '130px',
+          lineHeight: '1.5'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>{title}</div>
+          
+          {payload.map((entry: any, index: number) => {
+             let isCircle = entry.name === 'N/A';
+             let color = entry.color;
+             
+             return (
+               <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                 <div style={{ 
+                   width: '8px', 
+                   height: '8px', 
+                   borderRadius: isCircle ? '50%' : '1px', 
+                   backgroundColor: isCircle ? 'transparent' : color,
+                   border: isCircle ? `2px solid ${color}` : 'none',
+                   marginRight: '8px'
+                 }}></div>
+                 <span style={{ color: '#555', flex: 1 }}>{entry.name}:</span>
+                 <span style={{ fontWeight: 'bold', marginLeft: '6px', color: '#111' }}>{entry.value}</span>
+               </div>
+             );
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="container-fluid content-wrap">
       <div id="smartolt-update-banner" className="alert alert-success alert-dismissible" role="alert" style={{ display: 'none' }}>
@@ -263,12 +308,18 @@ export default function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="name" fontSize={11} tickLine={false} stroke="#999" axisLine={false} />
                       <YAxis fontSize={11} tickLine={false} stroke="#999" axisLine={false} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
-                        itemStyle={{ fontSize: '13px' }}
-                        labelStyle={{ fontWeight: 'bold', color: '#333', marginBottom: '5px' }}
+                      <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#ccc', strokeWidth: 1 }} />
+                      <Legend 
+                        formatter={renderLegendText} 
+                        iconSize={10} 
+                        wrapperStyle={{ fontSize: '12px', marginTop: '20px', paddingBottom: '10px' }} 
+                        payload={[
+                          { value: 'Online', type: 'square', id: 'Online', color: '#5cb85c' },
+                          { value: 'Power Fail', type: 'square', id: 'PowerFail', color: '#337ab7' },
+                          { value: 'LOS', type: 'square', id: 'LOS', color: '#ec971f' },
+                          { value: 'N/A', type: 'square', id: 'Offline', color: '#777777' }
+                        ]}
                       />
-                      <Legend formatter={renderLegendText} iconType="circle" iconSize={10} wrapperStyle={{ fontSize: '12px', marginTop: '20px', paddingBottom: '10px' }} />
                       <Area type="stepAfter" dataKey="Online" stroke="#5cb85c" fill="url(#colorOnline)" strokeWidth={2} activeDot={{ r: 6 }} />
                       <Area type="stepAfter" dataKey="PowerFail" name="Power Fail" stroke="#337ab7" fill="transparent" strokeWidth={2} />
                       <Area type="stepAfter" dataKey="LOS" stroke="#ec971f" fill="transparent" strokeWidth={2} />

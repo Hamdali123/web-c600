@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const olt = await prisma.oLTDevice.findUnique({ where: { id: parseInt(oltId) } });
     if (!olt) return NextResponse.json({ success: false, error: 'OLT not found' }, { status: 404 });
 
-    const onuType = await prisma.oNUType.findUnique({ where: { id: parseInt(onuTypeId) } });
+    const onuType = onuTypeId ? await prisma.oNUType.findUnique({ where: { id: parseInt(onuTypeId) } }) : null;
 
     // 1. Execute CLI Command
     const cliResult = await authorizeOnu({
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       portInfo,
       onuId,
       onuType: onuType?.name,
-      vlan: parseInt(vlan),
+      vlan: vlan,
       name,
       mode: mode || 'route',
       pppoeUser,

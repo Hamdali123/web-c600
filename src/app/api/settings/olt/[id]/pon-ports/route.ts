@@ -73,6 +73,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
        }
     }
 
+    // Fetch LIVE PON ports and ONU counts from physical OLT
+    let livePonPorts: any[] = [];
+    try {
+        livePonPorts = await getOltPonPorts(creds);
+    } catch (e) {
+        console.error("Failed to fetch live PON ports, falling back to DB", e);
+    }
+
     // Auto-fill all 16 ports for any active slot
     for (const slot of uniqueSlots) {
         for (let i = 1; i <= 16; i++) {
@@ -99,7 +107,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
            displayName = portName.replace('gpon_olt-', 'GPON ').replace('gpon-olt_', 'GPON ');
        }
 
-       const isUp = avgData.total > 0; // Simple heuristic: if there are ONUs configured on it, it's UP. Or maybe there's a better way. Wait, actually, let's just say if total > 0 then it's UP.
+       // Find live hardware data for this port
+       const liveData = livePonPorts.find(p => p.name === portName || p.name === portName.replace('gpon_olt-', 'gpon-olt_'));
+       
+       const totalOnus = liveData ? liveData.onuCount : avgData.total;
+       const onlineOnus = liveData ? liveData.onlineCount : avgData.online;
+       const isUp = liveData ? liveData.operState === 'up' : avgData.total > 0;
 
        // Fallback deterministic pseudo-Tx if not in cache (for empty ports)
        const hash = portName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -111,8 +124,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
          value: match ? match[0] : portName,
          status: isUp ? 'Up' : 'Down',
          operState: isUp ? 'Up' : 'Down',
-         onus_total: avgData.total,
-         onus_online: avgData.online,
+         onus_total: totalOnus,
+         onus_online: onlineOnus,
          averageSignal: avgData.count > 0 ? (avgData.sum / avgData.count).toFixed(2) : null,
          txPower: realTx || pseudoTx,
          properties: {
