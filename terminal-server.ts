@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import { Client } from 'ssh2';
 import { Telnet } from 'telnet-client';
+import './src/lib/autoDiscoveryWorker';
 
 const server = http.createServer((req, res) => {
     res.writeHead(200);
@@ -87,13 +88,13 @@ wss.on('connection', (ws, req) => {
                         // Handle initial login manually to stream it to client
                         const promptRegex = /[#>]\s*$/i;
                         try {
-                            const uOut = await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+                            const uOut = await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, execTimeout: 5000 });
                             ws.send(JSON.stringify({ type: 'data', data: uOut + '\r\n' }));
                             
-                            const pOut = await connection.send(creds.password || '', { waitFor: promptRegex, timeout: 5000 });
+                            const pOut = await connection.send(creds.password || '', { waitFor: promptRegex, execTimeout: 5000 });
                             ws.send(JSON.stringify({ type: 'data', data: pOut + '\r\n' }));
                             
-                            const tOut = await connection.send('terminal length 0', { waitFor: promptRegex, timeout: 5000 });
+                            const tOut = await connection.send('terminal length 0', { waitFor: promptRegex, execTimeout: 5000 });
                             ws.send(JSON.stringify({ type: 'data', data: tOut + '\r\n' }));
                             
                             // Force a new prompt to appear

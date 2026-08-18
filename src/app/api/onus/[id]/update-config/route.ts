@@ -21,9 +21,6 @@ export async function POST(
         address: address,
         zone_id: zoneId ? parseInt(zoneId) : undefined,
         odb_id: odbId ? parseInt(odbId) : undefined,
-        odb_port: odbPort || undefined,
-        lat: lat || undefined,
-        lng: lng || undefined,
         contact: contact,
         notes: notes,
         wan_mode: wan_mode,
@@ -33,6 +30,21 @@ export async function POST(
     });
 
     await logActivity('Update ONU Config', `Updated config for ONU: ${onu.name} (VLAN: ${onu.vlan})`, 'Success');
+
+    // Persist GPS coordinates onto the splitter (ODB) so the map shows the right pins
+    if (odbId && (lat || lng)) {
+      try {
+        await prisma.oDB.update({
+          where: { id: parseInt(odbId) },
+          data: {
+            lat: lat ? parseFloat(lat) : undefined,
+            lng: lng ? parseFloat(lng) : undefined
+          }
+        });
+      } catch (e) {
+        console.warn('Failed to update ODB coordinates', e);
+      }
+    }
 
     return NextResponse.json({ success: true, data: onu });
   } catch (error: any) {

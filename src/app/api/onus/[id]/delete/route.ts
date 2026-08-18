@@ -20,21 +20,24 @@ export async function DELETE(
 
     const creds: OltCredentials = {
       ip: onu.olt.ip_address,
-      port: 23,
+      port: onu.olt.telnet_port || 23,
       username: onu.olt.telnet_user || '',
       password: onu.olt.telnet_pass || '',
-      protocol: 'telnet',
-      vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
+      protocol: (onu.olt.protocol?.toLowerCase() as 'ssh' | 'telnet') || 'telnet',
+      vendor: (onu.olt.vendor?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 
-    // 1. Delete from physical OLT
+    // 1. Delete from physical OLT (fail loudly — deleting from DB only leaves an
+    //    orphan ONU on the OLT that keeps showing up as unconfigured).
+    let output = '';
     try {
-      await deleteOnu(creds, {
+      output = await deleteOnu(creds, {
         portInfo: onu.pon_port || '',
         onuId: onu.onu_id || ''
       });
-    } catch (e) {
-      console.warn("Failed to delete from physical OLT (offline or timeout). Proceeding with database cleanup.", e);
+    } catch (e: any) {
+      await logActivity('Delete ONU', `Failed for ONU: ${onu.name}, SN: ${onu.sn_mac} - ${e.message}`, 'Error');
+      return NextResponse.json({ success: false, error: `Physical OLT rejected the delete: ${e.message}` }, { status: 500 });
     }
 
     // 2. Clean up associated history and notifications to prevent Foreign Key Constraint errors
@@ -49,7 +52,7 @@ export async function DELETE(
 
     await logActivity('Delete ONU', `ONU: ${onu.name}, SN: ${onu.sn_mac}`, 'Success');
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, result: output });
   } catch (error: any) {
     console.error(error);
     await logActivity('Delete ONU', `Error: ${error.message}`, 'Error');

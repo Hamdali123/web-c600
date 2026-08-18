@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    console.log("GET /api/onus/configured PARAMS:", searchParams.toString());
     const search = searchParams.get('search');
     const status = searchParams.get('status');
     const oltId = searchParams.get('olt');
@@ -45,6 +49,21 @@ export async function GET(request: Request) {
          orConditions.push({ status: 'Online' });
        }
 
+       // Dashboard deep-links use pseudo statuses: status=pwrfail / los / offline / admin_disabled
+       if (statuses.includes('pwrfail') || statuses.includes('power failed')) {
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'Power Failed' } });
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'power' } });
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'dyinggasp' } });
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'dying-gasp' } });
+       }
+       if (statuses.includes('los')) {
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'LOS' } });
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'los' } });
+       }
+       if (statuses.includes('admin_disabled')) {
+         orConditions.push({ status: 'Offline', offline_reason: { contains: 'admin_disabled' } });
+       }
+
        if (statuses.includes('Offline') || statuses.includes('offline')) {
          if (reason === 'LOS') {
            orConditions.push({ status: 'Offline', offline_reason: { contains: 'LOS' } });
@@ -53,12 +72,12 @@ export async function GET(request: Request) {
            orConditions.push({ status: 'Offline', offline_reason: { contains: 'Power Failed' } });
            orConditions.push({ status: 'Offline', offline_reason: { contains: 'power' } });
            orConditions.push({ status: 'Offline', offline_reason: { contains: 'dyinggasp' } });
+           orConditions.push({ status: 'Offline', offline_reason: { contains: 'dying-gasp' } });
            orConditions.push({ status: 'Offline', offline_reason: { contains: 'DyingGasp' } });
+         } else if (reason === 'admin_disabled' || reason === 'Admin Disabled') {
+           orConditions.push({ status: 'Offline', offline_reason: { contains: 'admin_disabled' } });
          } else {
-           orConditions.push({ 
-             status: 'Offline', 
-             offline_reason: { notIn: ['LOS', 'los', 'dyinggasp', 'DyingGasp', 'Power Failed', 'power'] } 
-           });
+           orConditions.push({ status: 'Offline' });
          }
        }
 
@@ -77,19 +96,27 @@ export async function GET(request: Request) {
 
     const signalStatus = searchParams.get('signal_status');
     if (signalStatus) {
+       const oltDevice = (oltId && oltId !== 'all') ? await prisma.oLTDevice.findUnique({ where: { id: parseInt(oltId) } }) : await prisma.oLTDevice.findFirst();
+       const threshold = oltDevice?.signal_threshold ?? -27.0;
+
        whereClause.status = 'Online';
        if (signalStatus === 'good') {
-         whereClause.signal = { gt: -25 };
+         whereClause.signal = { gt: threshold };
        } else if (signalStatus === 'warning') {
-         whereClause.signal = { lte: -25, gt: -28 };
+         whereClause.signal = { lte: threshold, gt: -30.0 };
        } else if (signalStatus === 'critical') {
-         whereClause.signal = { lte: -28 };
+         whereClause.signal = { lte: -30.0 };
        }
     }
 
     if (oltId && oltId !== 'all') {
        const parsedId = parseInt(oltId);
-       if (!isNaN(parsedId)) whereClause.olt_id = parsedId;
+       if (!isNaN(parsedId)) {
+         const oltExists = await prisma.oLTDevice.findUnique({ where: { id: parsedId } });
+         if (oltExists) {
+           whereClause.olt_id = parsedId;
+         }
+       }
     }
 
     if (zoneId && zoneId !== 'all') {
@@ -153,6 +180,10 @@ export async function GET(request: Request) {
       total: totalCount,
       page,
       limit
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   } catch (error: any) {
     console.error(error);

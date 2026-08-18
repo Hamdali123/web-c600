@@ -1,100 +1,284 @@
-# SmartOLT Clone - Sistem Manajemen Jaringan FTTH
+# 📡 SmartOLT Clone — ZTE C600 Management Dashboard
 
-SmartOLT Clone adalah sebuah aplikasi web (Web App) manajemen jaringan Fiber to the Home (FTTH) yang dirancang untuk memberikan kemudahan dalam mengelola dan memonitor perangkat **Optical Line Terminal (OLT)** dan **Optical Network Unit (ONU)**. 
-
-Aplikasi ini dibuat sebagai replika/alternatif lokal berkinerja tinggi dari sistem SmartOLT original, dengan membawa fitur-fitur penting seperti provisioning ONU otomatis, pemantauan sinyal (redaman) secara *real-time*, manajemen VLAN, dan integrasi dengan Router Mikrotik.
+Dashboard manajemen OLT berbasis web yang dibangun dengan **Next.js 16**, terinspirasi dari produksi SmartOLT. Mendukung manajemen ONU secara *real-time* via **Telnet/SSH** ke perangkat OLT fisik ZTE C600.
 
 ---
 
-## 🌟 Fitur Utama
+## ✨ Fitur Utama
 
-1. **Dashboard Monitoring Real-Time**
-   - Menampilkan ringkasan status jaringan secara real-time (Waiting Authorization, Online, Offline, Low Signals).
-   - Menampilkan metrik perangkat OLT secara live (CPU, Memori, Temperatur, Uptime).
-   - Grafik status jaringan harian.
-
-2. **Manajemen OLT (ZTE & Huawei)**
-   - Mendukung perangkat OLT dari vendor ZTE dan Huawei.
-   - Komunikasi langsung ke perangkat keras menggunakan protokol **Telnet**, **SSH**, dan **SNMP**.
-   - Monitoring kapasitas *card* dan status *port* PON.
-
-3. **Manajemen ONU / Modem (Auto-Discovery)**
-   - **Unconfigured ONUs**: Sistem secara otomatis mendeteksi ONU baru yang terhubung ke OLT namun belum diotorisasi.
-   - **Configured ONUs**: Manajemen ONU yang sudah berjalan, termasuk pengaturan mode (Bridge/Route), konfigurasi PPPoE, dan VLAN.
-   - **Pemantauan Sinyal (Redaman)**: Membaca nilai Rx/Tx Power ONU secara langsung untuk diagnostik jarak jauh.
-   - Kemampuan *reboot* dan konfigurasi ulang ONU dari jarak jauh.
-
-4. **Konfigurasi Jaringan & Topologi**
-   - **VLANs**: Manajemen VLAN untuk Residential, Management, VoIP, dsb.
-   - **Speed Profiles**: Pengaturan limitasi bandwidth (Upload/Download).
-   - **Zones & ODB (Optical Distribution Box)**: Pemetaan wilayah dan titik distribusi jaringan optik.
-   - **Auth Presets**: Template otorisasi untuk mempercepat aktivasi pelanggan baru.
-
-5. **Integrasi Eksternal**
-   - **Mikrotik API**: Terintegrasi dengan router Mikrotik untuk sinkronisasi data PPPoE pelanggan.
-   - **TR069 Auto-Configuration Server (ACS)**: Mendukung profil manajemen TR069 untuk kontrol *CPE/Router* lebih lanjut.
-
-6. **Background Workers (Otomatisasi)**
-   - Aplikasi ini dilengkapi dengan skrip latar belakang (*cron jobs*) yang berjalan secara otomatis untuk menyinkronkan data OLT, memonitor status/redaman, dan mencari ONU yang baru terpasang.
+- 🔍 **Auto-Discovery ONU** — Scan ONU baru tiap 1 menit secara otomatis
+- ✅ **Otorisasi ONU** — Authorize ONU langsung via CLI ke OLT fisik
+- 📊 **Monitoring Signal** — Tracking Rx/Tx power secara *real-time*
+- 🗑️ **Batch Action** — Reboot / Delete ONU secara massal
+- 🌐 **VLAN Management** — Tambah & hapus VLAN di OLT
+- 📋 **PON Port Monitor** — Status port GPON lengkap
+- 🔌 **Uplink Monitor** — Status & optik uplink port
+- 🖥️ **Web Terminal** — Akses CLI OLT via browser (WebSocket)
+- 🔔 **Notifikasi** — Alert sinyal lemah & ONU offline
+- 📈 **Grafik Signal History** — Histori sinyal tiap ONU
 
 ---
 
-## 🛠️ Teknologi yang Digunakan (Tech Stack)
+## 🛠️ Tech Stack
 
-*   **Frontend & Backend:** [Next.js 16](https://nextjs.org/) (App Router)
-*   **Bahasa:** [TypeScript](https://www.typescriptlang.org/)
-*   **Database:** [Prisma ORM](https://www.prisma.io/) dengan SQLite (Local DB)
-*   **Konektivitas Hardware:** `telnet-client` & `ssh2`
-*   **Task Scheduler:** `node-cron`
+| Komponen | Teknologi |
+|----------|-----------|
+| Framework | Next.js 16 (App Router) |
+| Database | SQLite via Prisma ORM |
+| Koneksi OLT | Telnet (`telnet-client`) / SSH (`ssh2`) |
+| Terminal Web | WebSocket + xterm.js |
+| Background Job | `node-cron` |
+| UI | Bootstrap 3 + Custom CSS |
+| Runtime | Node.js 20+ |
 
 ---
 
-## 🚀 Cara Instalasi (Setelah Cloning)
+## 📋 Prasyarat
 
-Ikuti langkah-langkah berikut untuk menjalankan project ini di komputer lokal Anda:
+Pastikan semua sudah terinstall di server/PC kamu:
 
-### 1. Persyaratan (Prerequisites)
-Pastikan Anda sudah menginstall:
-- [Node.js](https://nodejs.org/) (Versi 18 atau terbaru)
-- NPM (Biasanya ikut terinstall bersama Node.js)
+- **Node.js** v20 atau lebih baru
+- **npm** v10 atau lebih baru
+- **Git**
+- Akses jaringan ke OLT (via IP + port Telnet/SSH)
 
-### 2. Clone Repository
-Jika belum, clone repository ini:
+---
+
+## 🚀 Cara Clone & Setup
+
+### 1. Clone Repository
+
 ```bash
-git clone https://github.com/username/smartolt.git
-cd smartolt
+git clone https://github.com/username/smartolt_baru.git
+cd smartolt_baru
 ```
 
-### 3. Install Dependensi
-Jalankan perintah ini di dalam terminal:
+### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
-### 4. Setup Database
-Project ini menggunakan SQLite, jadi Anda tidak perlu install database server (MySQL/Postgres). Cukup jalankan:
-```bash
-# Membuat file database lokal (dev.db) berdasarkan skema
-npx prisma db push
+### 3. Setup Database
 
-# (Opsional) Menambah user admin default
-# Email: mohamadsanwani9@gmail.com | Pass: 72UubSHF4m2z
-npx prisma db seed
+Generate Prisma client dan buat database SQLite:
+
+```bash
+npx prisma generate
+npx prisma migrate dev --name init
 ```
 
-### 5. Jalankan Aplikasi
-Jalankan server development:
+### 4. Seed Data Awal (ONU Types, Speed Profiles, dll)
+
 ```bash
-npm run dev
+npx ts-node seed.ts
+npx ts-node seed_settings.ts
 ```
-Buka browser dan akses: [http://localhost:3000](http://localhost:3000)
+
+### 5. Buat User Admin
+
+```bash
+npx ts-node seed_user.ts
+```
+
+### 6. Tambah OLT Device
+
+Edit file `add_olt.ts` sesuaikan dengan data OLT kamu, lalu jalankan:
+
+```bash
+npx ts-node add_olt.ts
+```
+
+Atau bisa langsung lewat web di menu **Settings → OLT**.
+
+### 7. Jalankan Server Development
+
+```bash
+# Jalankan Next.js + Terminal WebSocket server sekaligus
+npm run dev:all
+```
+
+Web akan berjalan di: **http://localhost:3009**
 
 ---
 
-## 📌 Catatan Penting
-- **Database:** File database tersimpan di `prisma/dev.db`. Jangan menghapus file ini jika ingin menyimpan data.
-- **Prisma Studio:** Jika ingin melihat isi database lewat tampilan grafis, jalankan `npx prisma studio`.
-- **Default Login:** Gunakan kredensial dari file `seed.ts` untuk login pertama kali.
+## ⚙️ Konfigurasi OLT (ZTE C600)
+
+Masuk ke **Settings → OLT → Edit** dan isi:
+
+| Field | Contoh | Keterangan |
+|-------|--------|------------|
+| IP Address | `103.68.214.225` | IP OLT |
+| Telnet Port | `2334` | Default Telnet: 23 |
+| Username | `admin` | Login CLI OLT |
+| Password | `yourpassword` | Password CLI OLT |
+| Protocol | `telnet` | `telnet` atau `ssh` |
+| Vendor | `zte` | `zte` atau `huawei` |
+| SNMP RO | `public` | Community string read-only |
 
 ---
-*Dibuat untuk Manajemen Jaringan Fiber Optik Modern.*
+
+## 🖥️ Deploy ke Production (Ubuntu Server 22.04)
+
+### 1. Install Node.js 20
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+### 2. Install PM2 (Process Manager)
+
+```bash
+sudo npm install -g pm2
+```
+
+### 3. Build Aplikasi
+
+```bash
+npm run build
+```
+
+### 4. Jalankan dengan PM2
+
+```bash
+# Start Next.js
+pm2 start npm --name "smartolt" -- run start
+
+# Start Terminal WebSocket Server
+pm2 start npx --name "smartolt-ws" -- ts-node terminal-server.ts
+
+# Simpan config PM2 agar auto-start saat reboot
+pm2 save
+pm2 startup
+```
+
+### 5. Setup Nginx sebagai Reverse Proxy
+
+Install Nginx:
+
+```bash
+sudo apt install nginx
+```
+
+Buat config Nginx di `/etc/nginx/sites-available/smartolt`:
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://localhost:3009;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    location /ws {
+        proxy_pass http://localhost:3010;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+    }
+}
+```
+
+Aktifkan:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/smartolt /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### 6. SSL dengan Certbot (Let's Encrypt)
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+---
+
+## 📁 Struktur Direktori Penting
+
+```
+smartolt_baru/
+├── src/
+│   ├── app/                    # Next.js App Router (pages + API routes)
+│   │   ├── api/                # Backend API endpoints
+│   │   │   ├── onus/           # ONU management APIs
+│   │   │   ├── settings/       # OLT & system settings APIs
+│   │   │   └── ...
+│   │   ├── onu/                # Halaman ONU (unconfigured, configured, view)
+│   │   └── olt/                # Halaman OLT details (vlan, pon, uplink, dll)
+│   └── lib/
+│       ├── oltConnection.ts    # ⚡ Wrapper utama Telnet/SSH ke OLT
+│       ├── autoDiscoveryWorker.ts  # ⏰ Background cron jobs
+│       ├── vendors/
+│       │   └── zte-c600.ts    # 📟 Parser & command builder ZTE C600
+│       └── prisma.ts           # Database client
+├── prisma/
+│   ├── schema.prisma           # Database schema
+│   └── dev.db                  # SQLite database file
+├── terminal-server.ts          # WebSocket server untuk web terminal
+└── package.json
+```
+
+---
+
+## 🔧 Scripts Yang Tersedia
+
+```bash
+npm run dev          # Start Next.js dev server (port 3009)
+npm run dev:all      # Start Next.js + WebSocket Terminal server
+npm run build        # Build production
+npm run start        # Start production server
+```
+
+---
+
+## 📡 Background Workers (Auto-run saat server start)
+
+| Worker | Interval | Fungsi |
+|--------|----------|--------|
+| **Radar** | Tiap 1 menit | Scan OLT untuk ONU baru |
+| **Status Sync** | Tiap 2 menit | Update status Online/Offline + sinyal |
+| **Metrics Sync** | Tiap 5 menit | Update CPU, Memori, Suhu OLT |
+
+---
+
+## 🐛 Troubleshooting
+
+### ONU tidak muncul di Unconfigured
+1. Pastikan OLT sudah terkonfigurasi di Settings
+2. Cek koneksi Telnet ke OLT: `telnet <IP_OLT> <PORT>`
+3. Tunggu maksimal 1 menit untuk scan otomatis
+4. Klik tombol **Refresh** di halaman Unconfigured
+
+### VLAN tidak muncul
+1. Tambahkan VLAN lewat tombol **Add VLAN**
+2. VLAN disimpan ke database lokal, muncul setelah Refresh
+3. Perintah CLI juga dikirim ke OLT secara bersamaan
+
+### Web Terminal tidak konek
+1. Pastikan `terminal-server.ts` sedang berjalan (port 3010)
+2. Gunakan `npm run dev:all` bukan hanya `npm run dev`
+
+### Error Telnet timeout
+1. Cek IP & port OLT sudah benar
+2. Pastikan tidak ada firewall yang memblokir koneksi
+3. Periksa kredensial login OLT
+
+---
+
+## 📄 Lisensi
+
+MIT License — Bebas digunakan dan dimodifikasi.
+
+---
+
+*Dibuat dengan ❤️ untuk manajemen jaringan FTTH yang lebih mudah.*

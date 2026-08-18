@@ -1,8 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // @ts-expect-error - Next.js turbopack feature not yet in types
-  allowedDevOrigins: ['subsatiric-ellen-softheartedly.ngrok-free.dev'],
   serverExternalPackages: ['ssh2', 'telnet-client'],
   async rewrites() {
     return [
@@ -22,6 +20,7 @@ const nextConfig: NextConfig = {
       { source: '/auth', destination: '/settings/general?tab=users' },
     ];
   },
+  turbopack: {},
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

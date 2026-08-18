@@ -24,7 +24,7 @@ async function main() {
     where: { id: 2 },
     update: {
       name: 'C600-SANWANI',
-      ip_address: '103.68.214.171',
+      ip_address: '103.68.214.225',
       telnet_port: 2334,
       telnet_user: 'sanwanay',
       telnet_pass: '1Sampai9',
@@ -43,7 +43,7 @@ async function main() {
     create: {
       id: 2,
       name: 'C600-SANWANI',
-      ip_address: '103.68.214.171',
+      ip_address: '103.68.214.225',
       telnet_port: 2334,
       telnet_user: 'sanwanay',
       telnet_pass: '1Sampai9',

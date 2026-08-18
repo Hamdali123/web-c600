@@ -36,6 +36,7 @@ model OLTDevice {
   logMonitorings   LogMonitoring[]
   logAlerts        LogAlert[]
   portStatuses     PortStatus[]
+  autoTasks        AutoTask[]
 }
 
 model ONUUnconfigured {
@@ -320,4 +321,19 @@ model PortStatus {
   outTraffic  BigInt    @default(0)
   lastUpdated DateTime  @updatedAt
   olt         OLTDevice @relation(fields: [oltId], references: [id], onDelete: Cascade)
+}
+
+model AutoTask {
+  id         Int       @id @default(autoincrement())
+  action     String    // Auto-Resync, Auto-Move, Auto-Authorize
+  olt_id     Int
+  user_email String?   // mohemadsanwani9@gmail.com
+  processed  Int       @default(0)
+  successful Int       @default(0)
+  failed     Int       @default(0)
+  status     String    @default("Running") // Running, Finished, Stopped
+  start_time DateTime  @default(now())
+  end_time   DateTime?
+  stopped_by String?
+  olt        OLTDevice @relation(fields: [olt_id], references: [id], onDelete: Cascade)
 }

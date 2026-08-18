@@ -19,7 +19,7 @@ export async function POST(
     if (!onu) return NextResponse.json({ success: false, error: 'ONU not found' }, { status: 404 });
 
     // Execute OLT Command
-    await disableOnu({
+    const output = await disableOnu({
       ip: onu.olt.ip_address,
       port: onu.olt.telnet_port,
       username: onu.olt.telnet_user || '',
@@ -33,12 +33,12 @@ export async function POST(
 
     const updatedOnu = await prisma.oNUConfigured.update({
       where: { id: onuId },
-      data: { enabled: false, status: 'Offline' }
+      data: { enabled: false, status: 'Offline', offline_reason: 'admin_disabled', signal: null, signal_tx: null }
     });
 
     await logActivity('Disable ONU', `Disabled ONU: ${onu.name} (SN: ${onu.sn_mac}) on OLT ${onu.olt.name}`, 'Success');
 
-    return NextResponse.json({ success: true, data: updatedOnu });
+    return NextResponse.json({ success: true, data: updatedOnu, result: output });
   } catch (error: any) {
     console.error(error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

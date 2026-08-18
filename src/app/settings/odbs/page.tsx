@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 export default function OdbsPage() {
   const [odbs, setOdbs] = useState<any[]>([]);
   const [zones, setZones] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   
   // Search Filters
   const [filters, setFilters] = useState({ search: '', zoneId: '' });

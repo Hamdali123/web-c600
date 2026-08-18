@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    console.log("GET /api/dashboard PARAMS:", searchParams.toString());
     const oltIdStr = searchParams.get('olt_id');
-    const oltId = oltIdStr && oltIdStr !== 'all' ? parseInt(oltIdStr) : undefined;
+    let oltId: number | undefined = undefined;
+    if (oltIdStr && oltIdStr !== 'all') {
+      const parsed = parseInt(oltIdStr);
+      if (!isNaN(parsed)) {
+        const exists = await prisma.oLTDevice.findUnique({ where: { id: parsed } });
+        if (exists) oltId = parsed;
+      }
+    }
 
     const filter = oltId ? { olt_id: oltId } : {};
 
@@ -38,11 +49,14 @@ export async function GET(request: Request) {
       where: { ...filter, status: 'Offline' }
     });
 
+    const oltDevice = oltId ? await prisma.oLTDevice.findUnique({ where: { id: oltId } }) : await prisma.oLTDevice.findFirst();
+    const threshold = oltDevice?.signal_threshold ?? -27.0;
+
     const signalWarningCount = await prisma.oNUConfigured.count({
       where: {
         ...filter,
         status: 'Online',
-        signal: { lte: -27, gt: -30 }
+        signal: { lte: threshold, gt: -30.0 }
       }
     });
 
@@ -50,7 +64,7 @@ export async function GET(request: Request) {
       where: {
         ...filter,
         status: 'Online',
-        signal: { lte: -30 }
+        signal: { lte: -30.0 }
       }
     });
 
@@ -116,6 +130,10 @@ export async function GET(request: Request) {
       recentLogs: recentLogs,
       notifications: notifications,
       authPerDay: authPerDay
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   } catch (error) {
     console.error(error);

@@ -25,18 +25,28 @@ export async function POST(request: Request) {
       data: { last_login: new Date() }
     });
 
-    // Set cookie (Simplified for clone)
+    const userInfo = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    };
+    
+    // Encode user info as base64 for easy parsing in Edge middleware and frontend
+    const tokenPayload = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+
+    // Set cookie
     const cookieStore = await cookies();
-    cookieStore.set('auth_token', 'dummy-token-' + user.id, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+    cookieStore.set('auth_token', tokenPayload, {
+      httpOnly: false, // false so ClientLayout can read it
+      secure: false,
       maxAge: 60 * 60 * 24, // 1 day
       path: '/'
     });
 
     return NextResponse.json({ 
       success: true, 
-      user: { id: user.id, name: user.name, email: user.email, role: user.role } 
+      user: userInfo 
     });
 
   } catch (error) {

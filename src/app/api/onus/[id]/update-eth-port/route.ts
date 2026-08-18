@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { executeOltCommand, OltCredentials } from '@/lib/oltConnection';
+import { executeOltCommand, saveConfig, OltCredentials, normalizePonPort, detectOnuType } from '@/lib/oltConnection';
 import * as zteC600 from '@/lib/vendors/zte-c600';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const resolvedParams = await params;
     try {
-        const onuId = parseInt(params.id);
+        const onuId = parseInt(resolvedParams.id);
         if (isNaN(onuId)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
         const body = await req.json();
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         const onu = await prisma.oNUConfigured.findUnique({
             where: { id: onuId },
-            include: { olt: true }
+            include: { olt: true, onu_type: true }
         });
 
         if (!onu) return NextResponse.json({ error: 'ONU not found' }, { status: 404 });
@@ -30,13 +31,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         };
 
         const onuInterface = creds.vendor === 'zte' 
-            ? `gpon_onu-${onu.pon_port?.replace('gpon-olt_', '')}:${onu.onu_id}`
+            ? `${normalizePonPort(onu.pon_port || '')}:${onu.onu_id}`
             : onu.pon_port || '';
 
         let output = '';
         if (creds.vendor === 'zte') {
-            const commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp);
-            output = await executeOltCommand(creds, commandList);
+            // The DB onu_type is usually empty; ask the physical OLT which UNI
+            // naming (eth_1/x vs eth_0/x) this ONU actually uses.
+            const onuType = onu.onu_type?.name || (await detectOnuType(creds, onuInterface)) || 'ALL';
+            const commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp, onuType);
+            output = await executeOltCommand(creds, commandList, { failOnError: true });
+            await saveConfig(creds);
         } else {
             // Huawei logic here later
             output = 'Huawei not yet implemented for port mode';
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             }
         });
 
-        return NextResponse.json({ success: true, message: 'Ethernet port configured' });
+        return NextResponse.json({ success: true, message: 'Ethernet port configured', result: output });
     } catch (e: any) {
         return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 });
     }

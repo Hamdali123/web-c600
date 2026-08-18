@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { getOltPonPorts, OltCredentials } from '@/lib/oltConnection';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +30,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Fetch real ONU signals from the database for this OLT
     const onus = await prisma.oNUConfigured.findMany({
       where: { olt_id: id },
-      select: { pon_port: true, signal: true }
+      select: { pon_port: true, signal: true, status: true }
     });
     
     // Also fetch unconfigured ONUs to ensure their ports are in the dropdown
@@ -73,6 +76,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
        }
     }
 
+    // Fetch LIVE PON ports and ONU counts from physical OLT
+    let livePonPorts: any[] = [];
+    try {
+        livePonPorts = await getOltPonPorts(creds);
+    } catch (e) {
+        console.error("Failed to fetch live PON ports, falling back to DB", e);
+    }
+
     // Auto-fill all 16 ports for any active slot
     for (const slot of uniqueSlots) {
         for (let i = 1; i <= 16; i++) {
@@ -88,6 +99,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         }
     } catch(e) {}
 
+    // Add live PON ports fetched from OLT
+    for (const p of livePonPorts) {
+        if (p.name) uniquePorts.add(p.name.replace('gpon-olt_', 'gpon_olt-'));
+    }
+
+    // Fallback: If no ports found yet, populate standard ZTE C600 card PON ports (Board 1 & 2, Ports 1-16)
+    if (uniquePorts.size === 0) {
+        for (let slot of [1, 2]) {
+            for (let port = 1; port <= 16; port++) {
+                uniquePorts.add(`gpon_olt-1/${slot}/${port}`);
+            }
+        }
+    }
+
     const enrichedPorts = Array.from(uniquePorts).map(portName => {
        const avgData = avgSignals[portName] || { sum: 0, count: 0, total: 0, online: 0 };
        
@@ -99,7 +124,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
            displayName = portName.replace('gpon_olt-', 'GPON ').replace('gpon-olt_', 'GPON ');
        }
 
-       const isUp = avgData.total > 0; // Simple heuristic: if there are ONUs configured on it, it's UP. Or maybe there's a better way. Wait, actually, let's just say if total > 0 then it's UP.
+       // Find live hardware data for this port
+       const liveData = livePonPorts.find(p => p.name === portName || p.name === portName.replace('gpon_olt-', 'gpon-olt_'));
+       
+       const totalOnus = liveData ? liveData.onuCount : avgData.total;
+       const onlineOnus = liveData ? liveData.onlineCount : avgData.online;
+       const isUp = liveData ? liveData.operState === 'up' : avgData.total > 0;
 
        // Fallback deterministic pseudo-Tx if not in cache (for empty ports)
        const hash = portName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -111,8 +141,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
          value: match ? match[0] : portName,
          status: isUp ? 'Up' : 'Down',
          operState: isUp ? 'Up' : 'Down',
-         onus_total: avgData.total,
-         onus_online: avgData.online,
+         onus_total: totalOnus,
+         onus_online: onlineOnus,
          averageSignal: avgData.count > 0 ? (avgData.sum / avgData.count).toFixed(2) : null,
          txPower: realTx || pseudoTx,
          properties: {

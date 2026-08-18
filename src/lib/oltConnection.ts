@@ -14,22 +14,50 @@ export interface OltCredentials {
   vendor: 'zte' | 'huawei';
 }
 
-// Mutex lock to prevent concurrent Telnet/SSH sessions to the same OLT hardware
-let lockPromise = Promise.resolve();
+export interface OltCommandOptions {
+  /** When true, throw if the OLT returns a '%Error' line (config writes should always fail loudly). */
+  failOnError?: boolean;
+}
 
-async function acquireLock() {
+// ZTE C600 rejects config commands with '%Error <code>: <reason>'. Fail silently
+// means the DB gets saved with a config the OLT never actually applied (ONU 'ada
+// tapi nggak konek'). Detect and surface these.
+function assertCliOk(output: string, opts?: OltCommandOptions) {
+  if (!opts?.failOnError) return;
+  const errorLine = output.split('\n').find(l => /%Error\s*\d*:/.test(l));
+  if (errorLine) {
+    throw new Error(errorLine.trim());
+  }
+}
+
+/**
+ * Normalize pon_port from DB to ONU interface format.
+ * Handles both 'gpon-olt_1/2/13' and 'gpon_olt-1/2/13' formats.
+ * toOnu=true  -> 'gpon_onu-1/2/13'
+ * toOnu=false -> 'gpon_olt-1/2/13'
+ */
+export function normalizePonPort(ponPort: string, toOnu = true): string {
+  const stripped = ponPort.replace(/^gpon[-_]olt[-_]/i, '');
+  return toOnu ? `gpon_onu-${stripped}` : `gpon_olt-${stripped}`;
+}
+
+// Per-OLT mutex lock to prevent concurrent Telnet/SSH sessions to the SAME OLT hardware
+// Each OLT IP gets its own lock — different OLTs can work in parallel
+const oltLocks: Map<string, Promise<void>> = new Map();
+
+async function acquireLock(oltIp: string = '_global') {
+  const currentLock = oltLocks.get(oltIp) ?? Promise.resolve();
   let release: () => void = () => {};
   const newLock = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const oldLock = lockPromise;
-  lockPromise = newLock;
-  await oldLock;
+  oltLocks.set(oltIp, newLock);
+  await currentLock;
   return release;
 }
 
-export async function executeOltCommand(creds: OltCredentials, command: string): Promise<string> {
-  const release = await acquireLock();
+export async function executeOltCommand(creds: OltCredentials, command: string, opts?: OltCommandOptions): Promise<string> {
+  const release = await acquireLock(creds.ip);
   try {
     const lines = command.trim().split('\n');
 
@@ -45,6 +73,7 @@ export async function executeOltCommand(creds: OltCredentials, command: string):
           let currentLine = 0;
           stream.on('close', () => {
             conn.end();
+            try { assertCliOk(output, opts); } catch (e) { return reject(e); }
             resolve(output);
           }).on('data', (data: any) => {
             const chunk = data.toString();
@@ -76,48 +105,52 @@ export async function executeOltCommand(creds: OltCredentials, command: string):
            disableLogon: true
         });
 
-       const promptRegex = /[#>]\s*$/i;
+       const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
 
        // Try to send username directly assuming OLT already sent "Username: " prompt
        try {
-           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, execTimeout: 5000 });
        } catch (e) {
            // Fallback: trigger login prompt first (some OLTs need a newline)
-           await connection.send('\n', { waitFor: /name[: ]*$|username[: ]*$/i, timeout: 5000 }).catch(() => null);
-           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+           await connection.send('\n', { waitFor: /name[: ]*$|username[: ]*$/i, execTimeout: 5000 }).catch(() => null);
+           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, execTimeout: 5000 });
        }
        
        // Send password and wait for shell prompt
-       await connection.send(creds.password || '', { waitFor: promptRegex, timeout: 10000 });
+       await connection.send(creds.password || '', { waitFor: promptRegex, execTimeout: 10000 });
        
        // Disable pagination before sending commands
        try {
-         await connection.send('terminal length 0', { waitFor: promptRegex, timeout: 5000 });
+         await connection.send('terminal length 0', { waitFor: promptRegex, execTimeout: 5000 });
        } catch (e) {
-         try { await connection.send('length 0', { waitFor: promptRegex, timeout: 5000 }); } catch (err) {}
+         try { await connection.send('length 0', { waitFor: promptRegex, execTimeout: 5000 }); } catch (err) {}
        }
 
        let fullOutput = '';
        for (const line of lines) {
-           const out = await connection.send(line, { waitFor: promptRegex, timeout: 60000 });
+           const out = await connection.send(line, { waitFor: promptRegex, execTimeout: 60000 });
            fullOutput += out + '\n';
        }
 
        await connection.end();
+       assertCliOk(fullOutput, opts);
        return fullOutput;
 
-       } catch (error: any) {
+} catch (error: any) {
            try { await connection.destroy(); } catch (e) {}
+           if (String(error?.message || '').includes('%Error')) {
+               throw error;
+           }
            throw new Error(`Telnet connection failed: ${error.message}`);
        }
-  }
+   }
   } finally {
     release();
   }
 }
 
 export async function executeOltCommandBatch(creds: OltCredentials, commands: string[]): Promise<string[]> {
-  const release = await acquireLock();
+  const release = await acquireLock(creds.ip);
   try {
     if (creds.protocol === 'ssh') {
       const Client = require('ssh2').Client;
@@ -157,7 +190,7 @@ export async function executeOltCommandBatch(creds: OltCredentials, commands: st
         await connection.connect({
            host: creds.ip, port: creds.port || 23, timeout: 180000, negotiationMandatory: false, disableLogon: true
         });
-       const promptRegex = /[#>]\s*$/i;
+       const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
        try {
            await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
        } catch (e) {
@@ -195,29 +228,74 @@ export async function authorizeOnu(creds: OltCredentials, params: {
     onuId: string;
     sn: string;
     name: string;
-    vlan: number;
+    vlan: string | number;
     mode: 'bridge' | 'route';
     pppoeUser?: string;
     pppoePass?: string;
     onuType?: string;
+    profileName?: string;
+    recreate?: boolean;
 }) {
     if (creds.vendor === 'zte') {
         const script = ZteC600.authorizeOnuCommand(params);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     } else if (creds.vendor === 'huawei') {
         const script = Huawei.authorizeOnuCommand(params);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     }
     return "Vendor not supported for auto-auth";
+}
+
+export interface OnuStateEntry {
+    onuId: string;
+    adminState: string;
+    phase: string;
+}
+
+/**
+ * Query the physical OLT for the current ONU registration table on a PON port,
+ * e.g. 'show gpon onu state gpon_olt-1/2/13' → [{ onuId: '1', phase: 'los' }, ...].
+ * Used to pick a genuinely free ONU id instead of guessing from the (often stale) DB.
+ */
+export async function getOnuStateOnPort(creds: OltCredentials, portInfo: string): Promise<OnuStateEntry[]> {
+    if (creds.vendor !== 'zte') return [];
+    const port = normalizePonPort(portInfo, false);
+    let out = '';
+    try {
+        // Some C600 firmware only accepts `show gpon onu state` (no port arg),
+        // showing all ports in one table — filter rows by port prefix below.
+        out = await executeOltCommand(creds, `show gpon onu state`);
+    } catch (e) {
+        return [];
+    }
+    const portPrefix = port.replace(/^gpon[-_]olt[-_]/i, '').replace(/\//g, '\\/');
+    const re = new RegExp(`^${portPrefix}:(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)`);
+    const entries: OnuStateEntry[] = [];
+    for (const line of out.split('\n')) {
+        const m = line.trim().match(re);
+        if (m) {
+            entries.push({ onuId: m[1], adminState: m[2].toLowerCase(), phase: m[4].toLowerCase() });
+        }
+    }
+    return entries;
+}
+
+/** Pick the lowest free ONU id (1-128) on a PON port based on the physical OLT state. */
+export function pickFreeOnuId(entries: OnuStateEntry[]): number | null {
+    const used = new Set(entries.map(e => parseInt(e.onuId)).filter(n => !isNaN(n)));
+    for (let id = 1; id <= 128; id++) {
+        if (!used.has(id)) return id;
+    }
+    return null;
 }
 
 export async function rebootOnu(creds: OltCredentials, params: { portInfo: string; onuId: string; }) {
     if (creds.vendor === 'zte') {
         const script = ZteC600.rebootOnuCommand(params.portInfo, params.onuId);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     } else if (creds.vendor === 'huawei') {
         const script = Huawei.rebootOnuCommand(params.portInfo, params.onuId);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     }
     return '';
 }
@@ -225,10 +303,10 @@ export async function rebootOnu(creds: OltCredentials, params: { portInfo: strin
 export async function deleteOnu(creds: OltCredentials, params: { portInfo: string; onuId: string; }) {
     if (creds.vendor === 'zte') {
         const script = ZteC600.deleteOnuCommand(params.portInfo, params.onuId);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     } else if (creds.vendor === 'huawei') {
         const script = Huawei.deleteOnuCommand(params.portInfo, params.onuId);
-        return await executeOltCommand(creds, script);
+        return await executeOltCommand(creds, script, { failOnError: true });
     }
     return '';
 }
@@ -236,20 +314,20 @@ export async function deleteOnu(creds: OltCredentials, params: { portInfo: strin
 export async function enableOnu(creds: OltCredentials, params: { portInfo: string; onuId: string; }) {
    if (creds.vendor === 'zte') {
       const script = ZteC600.enableOnuCommand(params.portInfo, params.onuId);
-      return await executeOltCommand(creds, script);
+      return await executeOltCommand(creds, script, { failOnError: true });
    } else {
       const script = Huawei.enableOnuCommand(params.portInfo, params.onuId);
-      return await executeOltCommand(creds, script);
+      return await executeOltCommand(creds, script, { failOnError: true });
    }
 }
 
 export async function disableOnu(creds: OltCredentials, params: { portInfo: string; onuId: string; }) {
    if (creds.vendor === 'zte') {
       const script = ZteC600.disableOnuCommand(params.portInfo, params.onuId);
-      return await executeOltCommand(creds, script);
+      return await executeOltCommand(creds, script, { failOnError: true });
    } else {
       const script = Huawei.disableOnuCommand(params.portInfo, params.onuId);
-      return await executeOltCommand(creds, script);
+      return await executeOltCommand(creds, script, { failOnError: true });
    }
 }
 
@@ -275,6 +353,15 @@ export async function getOltMetrics(creds: OltCredentials) {
             if (cpuMatch) cpu = parseInt(cpuMatch[1]);
             if (memMatch) mem = parseInt(memMatch[1]);
             if (tempMatch) temp = parseInt(tempMatch[1]);
+            
+            // C600 format fallback
+            if (cpu === 0 && mem === 0) {
+               const mscMatch = output.match(/MSC\s+\d+%\s+(\d+)%.*?(\d+(?:\.\d+)?)%/i);
+               if (mscMatch) {
+                   cpu = parseInt(mscMatch[1]); // CPU(1m)
+                   mem = parseInt(mscMatch[2]); // Mem%
+               }
+            }
         } else if (creds.vendor === 'huawei') {
             const output = await executeOltCommand(creds, Huawei.getMetricsCommand());
             const metrics = Huawei.parseMetrics(output);
@@ -297,10 +384,10 @@ export async function getOltCards(creds: OltCredentials) {
 export async function getOltPonPorts(creds: OltCredentials) {
     if (creds.vendor === 'zte') {
         const cmds = ZteC600.getPonPortsCommand().split('\n');
-        const interfaceOutput = await executeOltCommand(creds, cmds[0]).catch(() => '');
-        const stateOutput = await executeOltCommand(creds, cmds[1]).catch(() => '');
-        const cardsOutput = await executeOltCommand(creds, cmds[2]).catch(() => '');
-        return ZteC600.parsePonPorts(stateOutput, cardsOutput);
+        const stateOutput = await executeOltCommand(creds, cmds[0]).catch(() => '');
+        const cardsOutput = await executeOltCommand(creds, cmds[1]).catch(() => '');
+        const briefOutput = await executeOltCommand(creds, cmds[2]).catch(() => '');
+        return ZteC600.parsePonPorts(stateOutput, cardsOutput, briefOutput);
     }
     return [];
 }
@@ -322,23 +409,23 @@ export async function saveConfig(creds: OltCredentials) {
 }
 
 export async function getVlans(creds: OltCredentials) {
-  const { PrismaClient } = require('@prisma/client');
-  const prismaLocal = new PrismaClient();
-  const vlans = await prismaLocal.vLAN.findMany();
-  return vlans.map((v: any) => ({
-      id: v.vlan_id,
-      desc: v.description
-  }));
+    if (creds.vendor === 'zte') {
+        const output = await executeOltCommand(creds, ZteC600.getVlansCommand());
+        return ZteC600.parseVlans(output);
+    }
+    // Fallback if not ZTE or error
+    return [];
 }
 
 export function parseOltAttenuation(output: string) {
     const lines = output.split('\n');
-    let onuRx = '-40.0';
-    let onuTx = '-40.0';
-    let oltRx = '-40.0';
-    let oltTx = '-40.0';
+    let onuRx: string | null = null;
+    let onuTx: string | null = null;
+    let oltRx: string | null = null;
+    let oltTx: string | null = null;
 
     for (const line of lines) {
+        // C320 format
         if (line.includes('ONU(')) {
             const parts = line.trim().split(/\s+/);
             if (parts.length >= 3) {
@@ -352,13 +439,38 @@ export function parseOltAttenuation(output: string) {
                 oltTx = parts[2];
             }
         }
+        
+        // C600 format
+        // up      Rx :-24.547(dbm)      Tx:2.372(dbm)        26.919(dB)
+        // up      Rx :no signal         Tx:N/A               N/A
+        if (line.trim().startsWith('up') && line.includes('Rx')) {
+            const rxMatch = line.match(/Rx\s*:\s*([\-\d\.]+)/i);
+            const txMatch = line.match(/Tx\s*:\s*([\-\d\.]+)/i);
+            if (rxMatch) oltRx = rxMatch[1];
+            else if (line.toLowerCase().includes('no signal')) oltRx = null; // ONU is truly offline
+            if (txMatch) onuTx = txMatch[1];
+        }
+        // down    Tx :5.379(dbm)        Rx:-19.862(dbm)      25.241(dB)
+        if (line.trim().startsWith('down') && line.includes('Tx')) {
+            const txMatch = line.match(/Tx\s*:\s*([\-\d\.]+)/i);
+            const rxMatch = line.match(/Rx\s*:\s*([\-\d\.]+)/i);
+            if (txMatch) oltTx = txMatch[1];
+            if (rxMatch) onuRx = rxMatch[1];
+        }
     }
     
+    // Helper: convert to numeric string or null
+    const toSignal = (val: string | null): string => {
+        if (!val || val === 'N/A' || val.toLowerCase() === 'no signal') return 'null';
+        return val;
+    };
+
     return {
-        onu_rx_power: onuRx !== 'N/A' ? onuRx : '-40.0',
-        onu_tx_power: onuTx !== 'N/A' ? onuTx : '-40.0',
-        olt_rx_power: oltRx !== 'N/A' ? oltRx : '-40.0',
-        olt_tx_power: oltTx !== 'N/A' ? oltTx : '-40.0'
+        onu_rx_power: toSignal(onuRx),
+        onu_tx_power: toSignal(onuTx),
+        olt_rx_power: toSignal(oltRx),
+        olt_tx_power: toSignal(oltTx),
+        no_signal: !onuRx && !onuTx // true when ONU is physically offline
     };
 }
 
@@ -372,12 +484,13 @@ export async function readOltAttenuation(creds: OltCredentials, onuInterface: st
 }
 
 export function parseOnuDetails(output: string) {
-    const distanceMatch = output.match(/distance.*?(\d+)/i);
-    const versionMatch = output.match(/version.*?([A-Za-z0-9.]+)/i);
+    const distanceMatch = output.match(/Distance:\s*(\d+)\s*m/i);
+    // C600 detail-info: "Online Duration:      1029h 55m 38s"
+    const uptimeMatch = output.match(/Online Duration:\s*([\d\shms]+)/i);
     return {
         distance: distanceMatch ? distanceMatch[1] + 'm' : 'N/A',
-        firmware: versionMatch ? versionMatch[1] : 'N/A',
-        uptime: null,
+        firmware: 'N/A',
+        uptime: uptimeMatch ? uptimeMatch[1].trim() : null,
         voip_status: 'Down',
         tv_status: 'Down'
     };
@@ -389,5 +502,25 @@ export async function getOnuDetails(creds: OltCredentials, onuInterface: string,
         return parseOnuDetails(output);
     } else {
         return { distance: 'N/A', firmware: 'N/A' };
+    }
+}
+
+/**
+ * Detect the ONU type naming actually registered on the C600 from the OLT:
+ *  - type ALL        -> UNIs are eth_1/x, wifi_1/x
+ *  - ZTE-F660/HG8245H/... -> UNIs are eth_0/x, wifi_0/x
+ * Returns 'ALL' for eth_1/x, 'ZTE-F660' for eth_0/x, or null when the query
+ * fails (caller then falls back to its own default). The DB onu_type is often
+ * empty, so this is the source of truth for UNI-based commands.
+ */
+export async function detectOnuType(creds: OltCredentials, onuInterface: string): Promise<string | null> {
+    if (creds.vendor !== 'zte') return null;
+    try {
+        const output = await executeOltCommand(creds, `show gpon remote-onu interface eth ${onuInterface}`);
+        if (/Interface\s*:\s*eth_1\//i.test(output)) return 'ALL';
+        if (/Interface\s*:\s*eth_0\//i.test(output)) return 'ZTE-F660';
+        return null;
+    } catch {
+        return null;
     }
 }

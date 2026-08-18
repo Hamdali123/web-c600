@@ -20,16 +20,27 @@ export async function POST(
 
     const creds: OltCredentials = {
       ip: onu.olt.ip_address,
-      port: 23,
+      port: onu.olt.telnet_port || 23,
       username: onu.olt.telnet_user || '',
       password: onu.olt.telnet_pass || '',
-      protocol: 'telnet',
+      protocol: (onu.olt.protocol?.toLowerCase() as 'ssh' | 'telnet') || 'telnet',
       vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 
     const result = await rebootOnu(creds, {
       portInfo: onu.pon_port || '',
       onuId: onu.onu_id || ''
+    });
+
+    // Immediately clear signal and mark as rebooting so UI doesn't show stale signal
+    await prisma.oNUConfigured.update({
+      where: { id: parseInt(id) },
+      data: {
+        status: 'Offline',
+        offline_reason: 'rebooting',
+        signal: null,
+        signal_tx: null
+      }
     });
 
     await logActivity('Reboot ONU', `ONU: ${onu.name}, SN: ${onu.sn_mac}`, 'Success');

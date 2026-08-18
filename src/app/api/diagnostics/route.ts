@@ -7,10 +7,14 @@ export async function GET(request: Request) {
     const search = searchParams.get('search');
     const status = searchParams.get('status');
     const reason = searchParams.get('reason');
-    const oltId = searchParams.get('olt');
+    // Dashboard deep-links use olt_id, the page itself uses olt — support both.
+    const oltId = searchParams.get('olt') || searchParams.get('olt_id');
     const zoneId = searchParams.get('zone');
     const odbId = searchParams.get('odb');
     const onuType = searchParams.get('onuType');
+    const board = searchParams.get('board');
+    const port = searchParams.get('port');
+    const ponType = searchParams.get('ponType');
     const signalFilter = searchParams.get('signal');
 
     let whereClause: any = {};
@@ -59,13 +63,32 @@ export async function GET(request: Request) {
       whereClause.onu_type_id = parseInt(onuType);
     }
 
+    // Board / Port / PON-type filters (dropdowns on the diagnostics page)
+    if (board && board !== 'Any') {
+      whereClause.pon_port = { contains: `/${board}/` };
+    }
+    if (port && port !== 'Any') {
+      whereClause.pon_port = { endsWith: `/${port}` };
+    }
+    if (ponType && ponType !== 'Any') {
+      whereClause.olt = { pon_types: { contains: ponType } };
+    }
+
     if (signalFilter && signalFilter !== 'Any') {
-      if (signalFilter === 'good') {
-        whereClause.signal = { gt: -25 };
-      } else if (signalFilter === 'warning') {
-        whereClause.signal = { lte: -25, gt: -28 };
-      } else if (signalFilter === 'critical') {
-        whereClause.signal = { lte: -28 };
+      // Accept comma-separated values (e.g. critical,warning from dashboard links)
+      const values = signalFilter.split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+      const conditions: any[] = [];
+      if (values.includes('good')) conditions.push({ signal: { gt: -25 } });
+      if (values.includes('warning')) conditions.push({ signal: { lte: -25, gt: -28 } });
+      if (values.includes('critical')) conditions.push({ signal: { lte: -28 } });
+      if (conditions.length > 0) {
+        whereClause.status = 'Online';
+        if (whereClause.OR) {
+          whereClause.AND = [{ OR: whereClause.OR }, { OR: conditions }];
+          delete whereClause.OR;
+        } else {
+          whereClause.OR = conditions;
+        }
       }
     }
 

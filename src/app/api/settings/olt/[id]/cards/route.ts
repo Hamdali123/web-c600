@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import { getOltCards, OltCredentials } from '@/lib/oltConnection';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {

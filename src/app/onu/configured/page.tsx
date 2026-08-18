@@ -115,6 +115,19 @@ function ConfiguredOnuContent() {
   });
   
   const [totalOnus, setTotalOnus] = useState(0);
+  const [userRole, setUserRole] = useState('readonly_users');
+  
+  useEffect(() => {
+    const match = document.cookie.match(new RegExp('(^| )auth_token=([^;]+)'));
+    if (match && match[2]) {
+      try {
+        const decoded = atob(match[2]);
+        setUserRole(JSON.parse(decoded).role);
+      } catch(e) {
+        if (match[2].startsWith('dummy-token')) setUserRole('admin');
+      }
+    }
+  }, []);
   
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [showBatchActions, setShowBatchActions] = useState(false);
@@ -278,19 +291,24 @@ function ConfiguredOnuContent() {
 
   const getSignalColor = (val: number | null) => {
     if (val === null) return '#ccc';
-    if (val <= -28) return '#d9534f'; // Red
-    if (val <= -25) return '#f0ad4e'; // Yellow
-    return '#5cb85c'; // Green
+    if (val <= -30) return '#d9534f'; // Red (Critical)
+    if (val <= -27) return '#f0ad4e'; // Yellow (Warning)
+    return '#5cb85c'; // Green (Good)
   };
 
-  const renderSignalBars = (signal: number | null) => {
-    if (signal === null) return <span className="text-muted">-</span>;
+  const renderSignalBars = (signal: number | null, isOffline?: boolean) => {
+    if (isOffline) return <span className="text-muted" style={{ fontSize: '12px' }}>-</span>;
+    if (signal === null || signal <= -40) return <span className="text-muted">-</span>;
     const color = getSignalColor(signal);
     return (
-      <div className="text-center" style={{ lineHeight: '1' }}>
-        <i className="fa fa-signal" style={{ color: color, fontSize: '14px' }}></i>
-        <div style={{ fontSize: '11px', color: '#777', marginTop: '4px' }}>{signal}</div>
-        <div style={{ fontSize: '10px', color: '#999' }}>dBm</div>
+      <div className="text-center" style={{ lineHeight: '1.2' }}>
+        <div style={{ display: 'inline-flex', gap: '2px', alignItems: 'flex-end', height: '14px', marginBottom: '2px' }}>
+          <div style={{ width: '4px', height: '4px', backgroundColor: color }}></div>
+          <div style={{ width: '4px', height: '7px', backgroundColor: signal > -30 ? color : '#eee' }}></div>
+          <div style={{ width: '4px', height: '10px', backgroundColor: signal > -27 ? color : '#eee' }}></div>
+          <div style={{ width: '4px', height: '14px', backgroundColor: signal > -25 ? color : '#eee' }}></div>
+        </div>
+        <div style={{ fontSize: '11px', color: '#999' }}>{typeof signal === 'number' ? signal.toFixed(2) : signal}<br/><span style={{fontSize: '9px'}}>dBm</span></div>
       </div>
     );
   };
@@ -298,8 +316,18 @@ function ConfiguredOnuContent() {
   const getStatusIcon = (status: string, reason: string | null) => {
     if (status === 'Offline') {
       const lowerReason = (reason || '').toLowerCase();
-      if (lowerReason.includes('los')) return <i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }} title="Loss of Signal"></i>;
-      if (lowerReason.includes('power') || lowerReason.includes('dyinggasp')) return <i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }} title="Power Failed"></i>;
+      if (lowerReason === 'rebooting') {
+        return <i className="fa fa-refresh fa-spin" style={{ color: '#f39c12', fontSize: '18px' }} title="Rebooting"></i>;
+      }
+      if (lowerReason === 'los' || lowerReason.includes('los')) {
+        return <i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }} title="Loss of Signal"></i>;
+      }
+      if (lowerReason === 'dyinggasp' || lowerReason.includes('dying') || lowerReason.includes('power')) {
+        return <i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }} title="Power Failed"></i>;
+      }
+      if (lowerReason === 'admin_disabled') {
+        return <i className="fa fa-ban" style={{ color: '#777', fontSize: '18px' }} title="Admin Disabled"></i>;
+      }
       return <i className="fa fa-globe" style={{ color: '#777', fontSize: '18px' }} title={reason ? `Offline (${reason})` : 'Offline'}></i>;
     }
     return <i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '18px' }} title="Online"></i>;
@@ -335,158 +363,160 @@ function ConfiguredOnuContent() {
         }
       `}} />
       
-      <form className="form-inline configured" onSubmit={(e) => { e.preventDefault(); fetchOnus(); }}>
-        <div className="margin-bottom filters-row">
-          <input type="hidden" id="olts_count" value="1"/>
-
-          <div className="form-group margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Search</label>
-            <input type="text" className="form-control" placeholder="SN, IP, name, address" 
-              style={{ width: '240px', display: 'inline-block', height: '32px', fontSize: '14px', padding: '5px 12px', color: '#2c3e50', border: '1px solid #e0e0e0', boxShadow: 'none' }}
-              value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} />
+      <form className="form-inline" onSubmit={(e) => { e.preventDefault(); fetchOnus(); }} style={{ marginBottom: '15px', color: '#333' }}>
+        {/* ROW 1 */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '12px' }}>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Search</label>
+            <input 
+              type="text" 
+              className="form-control input-sm" 
+              placeholder="SN, IP, name, address"
+              value={filters.search}
+              onChange={e => setFilters({...filters, search: e.target.value})}
+              style={{ width: '180px', fontSize: '14px', height: '32px', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}
+            />
           </div>
           
-          <SearchableDropdown 
-            label="OLT" 
-            width="140px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.olts.map((o:any) => ({value: String(o.id), label: o.name}))]} 
-            value={filters.olt} 
-            onChange={(val: any) => setFilters({...filters, olt: val, page: 1})} 
-          />
-
-          <SearchableDropdown 
-            label="Board" 
-            width="80px"
-            options={[{value: 'all', label: 'Any'}, ...[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(b => ({value: String(b), label: String(b)}))]} 
-            value={filters.board} 
-            onChange={(val: any) => setFilters({...filters, board: val, page: 1})} 
-          />
-          
-          <SearchableDropdown 
-            label="Port" 
-            width="80px"
-            options={[
-              {value: 'all', label: 'Any'}, 
-              ...[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(p => ({
-                value: String(p), 
-                label: String(p), 
-                count: Math.floor(Math.random() * 50) + 1 
-              }))
-            ]} 
-            value={filters.port} 
-            onChange={(val: any) => setFilters({...filters, port: val, page: 1})} 
-          />
-          
-          <SearchableDropdown 
-            label="Zone" 
-            width="100px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.zones.map((z:any) => ({value: String(z.id), label: z.name}))]} 
-            value={filters.zone} 
-            onChange={(val: any) => setFilters({...filters, zone: val, page: 1})} 
-          />
-          
-          <SearchableDropdown 
-            label="ODB" 
-            width="100px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.odbs.map((o:any) => ({value: String(o.id), label: o.name}))]} 
-            value={filters.odb} 
-            onChange={(val: any) => setFilters({...filters, odb: val, page: 1})} 
-          />
-
-          <SearchableDropdown 
-            label="VLAN" 
-            width="100px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.vlans.map((v:any) => ({value: String(v.id), label: v.vlan}))]} 
-            value={filters.vlan} 
-            onChange={(val: any) => setFilters({...filters, vlan: val, page: 1})} 
-          />
-        </div>
-
-        <div className="margin-bottom filters-row">
-          <SearchableDropdown 
-            label="ONU type" 
-            width="110px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.onuTypes.map((t:any) => ({value: String(t.id), label: t.name}))]} 
-            value={filters.onu_type} 
-            onChange={(val: any) => setFilters({...filters, onu_type: val, page: 1})} 
-          />
-
-          <SearchableDropdown 
-            label="Profile" 
-            width="110px"
-            options={[{value: 'all', label: 'Any'}, ...masterData.speedProfiles.map((p:any) => ({value: String(p.id), label: p.name}))]} 
-            value={filters.profile} 
-            onChange={(val: any) => setFilters({...filters, profile: val, page: 1})} 
-          />
-
-          <SearchableDropdown 
-            label="PON type" 
-            width="110px"
-            options={[
-              {value: 'all', label: 'Any'},
-              {value: 'GPON', label: 'GPON'},
-              {value: 'EPON', label: 'EPON'},
-              {value: 'XG-PON', label: 'XG-PON'},
-              {value: 'XGS-PON', label: 'XGS-PON'}
-            ]} 
-            value={filters.pon_type} 
-            onChange={(val: any) => setFilters({...filters, pon_type: val, page: 1})} 
-          />
-
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Status </label>
-            <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.status === 'Online' && !filters.signal_status ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Online', reason: '', signal_status: ''})} title="Online"><i className="fa fa-globe" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.reason === 'Power Failed' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'Power Failed', signal_status: ''})} title="Power Fail"><i className="fa fa-plug" style={{ color: '#777', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.reason === 'LOS' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: 'LOS', signal_status: ''})} title="Loss of Signal"><i className="fa fa-chain-broken" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.status === 'Offline' && !filters.reason ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, status: 'Offline', reason: '', signal_status: ''})} title="Offline"><i className="fa fa-globe" style={{ color: '#777', fontSize: '18px' }}></i></button>
-              <button type="button" className="btn btn-default" style={{ height: '32px', padding: '5px 12px' }} title="Admin Disabled"><i className="fa fa-ban" style={{ color: '#777', fontSize: '18px' }}></i></button>
-            </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>OLT</label>
+            <select className="form-control input-sm" value={filters.olt} onChange={e => setFilters({...filters, olt: e.target.value, page: 1})} style={{ width: '130px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.olts.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
           </div>
           
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '5px' }}>
-            <label className="control-label" style={{ marginRight: '8px', fontWeight: 'bold', fontSize: '14px', color: '#2c3e50' }}>Signal </label>
-            <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'good' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'good' ? '' : 'good', status: 'Online', reason: ''})} title="Good"><i className="fa fa-signal" style={{ color: '#00a65a', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'warning' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'warning' ? '' : 'warning', status: 'Online', reason: ''})} title="Warning"><i className="fa fa-signal" style={{ color: '#f39c12', fontSize: '18px' }}></i></button>
-              <button type="button" className={`btn btn-default ${filters.signal_status === 'critical' ? 'active' : ''}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'critical' ? '' : 'critical', status: 'Online', reason: ''})} title="Critical"><i className="fa fa-signal" style={{ color: '#dd4b39', fontSize: '18px' }}></i></button>
-            </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Board</label>
+            <select className="form-control input-sm" value={filters.board} onChange={e => setFilters({...filters, board: e.target.value, page: 1})} style={{ width: '70px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
           </div>
           
-          <div className="form-group pon-type-filter margin-right" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '15px' }}>
-            <div className="btn-group">
-              <button type="button" className={`btn btn-default ${filters.onu_mode === 'bridging' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'bridging' ? 'all' : 'bridging', page: 1})} style={{ height: '32px', padding: '5px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Bridging">B</button>
-              <button type="button" className={`btn btn-default ${filters.onu_mode === 'routing' ? 'active' : ''}`} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'routing' ? 'all' : 'routing', page: 1})} style={{ height: '32px', padding: '5px 12px', color: '#337ab7', fontWeight: 'bold', fontSize: '14px' }} title="Routing">R</button>
-            </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Port</label>
+            <select className="form-control input-sm" value={filters.port} onChange={e => setFilters({...filters, port: e.target.value, page: 1})} style={{ width: '70px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
           </div>
           
-          <div className="form-group pon-type-filter" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-            <div className="btn-group">
-              <button type="button" className={`btn ${showBatchActions ? 'btn-primary' : 'btn-default'}`} style={{ height: '32px', padding: '5px 12px' }} onClick={() => setShowBatchActions(!showBatchActions)} title="Batch actions">
-                <i className="fa fa-server" style={{ color: showBatchActions ? '#fff' : '#337ab7', fontSize: '18px' }}></i>
-              </button>
-            </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Zone</label>
+            <select className="form-control input-sm" value={filters.zone} onChange={e => setFilters({...filters, zone: e.target.value, page: 1})} style={{ width: '80px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.zones.map((z: any) => <option key={z.id} value={z.id}>{z.name}</option>)}
+            </select>
+          </div>
+          
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Splitter</label>
+            <select className="form-control input-sm" value={filters.odb} onChange={e => setFilters({...filters, odb: e.target.value, page: 1})} style={{ width: '80px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.odbs.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+          
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>VLAN</label>
+            <select className="form-control input-sm" value={filters.vlan} onChange={e => setFilters({...filters, vlan: e.target.value, page: 1})} style={{ width: '80px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.vlans.map((v: any) => <option key={v.id} value={v.vlan_id}>{v.vlan_id}</option>)}
+            </select>
           </div>
         </div>
 
-        <div className="margin-bottom" style={{ position: 'relative', textAlign: 'center' }}>
-          <a onClick={() => setShowMoreFilters(!showMoreFilters)} style={{ cursor: 'pointer', color: '#337ab7', fontSize: '13px' }}>
+        {/* ROW 2 */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '12px' }}>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>ONU type</label>
+            <select className="form-control input-sm" value={filters.onu_type} onChange={e => setFilters({...filters, onu_type: e.target.value, page: 1})} style={{ width: '90px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.onuTypes.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Profile</label>
+            <select className="form-control input-sm" value={filters.profile} onChange={e => setFilters({...filters, profile: e.target.value, page: 1})} style={{ width: '90px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              {masterData.speedProfiles.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>PON type</label>
+            <select className="form-control input-sm" value={filters.pon_type} onChange={e => setFilters({...filters, pon_type: e.target.value, page: 1})} style={{ width: '80px', fontSize: '14px', height: '32px', backgroundColor: '#fff', boxShadow: 'inset 0 1px 1px rgba(0,0,0,.075)', color: '#000' }}>
+              <option value="all">Any</option>
+              <option value="GPON">GPON</option>
+              <option value="EPON">EPON</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Status</label>
+            <ul className="pagination pagination-sm" style={{ margin: 0, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <li className={filters.status === 'Online' && !filters.signal_status ? "active" : ""} onClick={() => setFilters({...filters, status: 'Online', reason: '', signal_status: '', page: 1})} style={{ cursor: 'pointer' }} title="Online"><a><i className='fa fa-globe text-green' style={{ color: '#1fb325' }}></i></a></li>
+              <li className={filters.reason === 'Power Failed' ? "active" : ""} onClick={() => setFilters({...filters, status: 'Offline', reason: 'Power Failed', signal_status: '', page: 1})} style={{ cursor: 'pointer' }} title="Power Fail"><a><i className='fa fa-plug text-grey' style={{ color: '#777' }}></i></a></li>
+              <li className={filters.reason === 'LOS' ? "active" : ""} onClick={() => setFilters({...filters, status: 'Offline', reason: 'LOS', signal_status: '', page: 1})} style={{ cursor: 'pointer' }} title="Loss of Signal"><a><i className='fa fa-chain-broken text-red' style={{ color: '#dd4b39' }}></i></a></li>
+              <li className={filters.status === 'Offline' && !filters.reason ? "active" : ""} onClick={() => setFilters({...filters, status: 'Offline', reason: '', signal_status: '', page: 1})} style={{ cursor: 'pointer' }} title="Offline"><a><i className='fa fa-globe text-grey' style={{ color: '#777' }}></i></a></li>
+              <li className={filters.reason === 'admin_disabled' ? "active" : ""} onClick={() => setFilters({...filters, status: 'Offline', reason: filters.reason === 'admin_disabled' ? '' : 'admin_disabled', signal_status: '', page: 1})} style={{ cursor: 'pointer' }} title="Admin Disabled"><a><i className="fa fa-ban text-grey" style={{ color: '#777' }}></i></a></li>
+            </ul>
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <label style={{ fontWeight: 700, fontSize: '14px', margin: 0, color: '#000' }}>Signal</label>
+            <ul className="pagination pagination-sm" style={{ margin: 0, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <li className={filters.signal_status === 'good' ? "active" : ""} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'good' ? '' : 'good', status: 'Online', reason: '', page: 1})} style={{ cursor: 'pointer' }} title="Good"><a><i className='fa fa-signal text-green' style={{ color: '#1fb325' }}></i></a></li>
+              <li className={filters.signal_status === 'warning' ? "active" : ""} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'warning' ? '' : 'warning', status: 'Online', reason: '', page: 1})} style={{ cursor: 'pointer' }} title="Warning"><a><i className='fa fa-signal' style={{color:'darkorange'}}></i></a></li>
+              <li className={filters.signal_status === 'critical' ? "active" : ""} onClick={() => setFilters({...filters, signal_status: filters.signal_status === 'critical' ? '' : 'critical', status: 'Online', reason: '', page: 1})} style={{ cursor: 'pointer' }} title="Critical"><a><i className='fa fa-signal' style={{color:'red'}}></i></a></li>
+            </ul>
+          </div>
+
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <ul className="pagination pagination-sm" style={{ margin: 0, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+              <li className={filters.onu_mode === 'bridging' ? "active" : ""} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'bridging' ? 'all' : 'bridging', page: 1})} style={{ cursor: 'pointer' }} title="Bridging"><a><span style={{ fontWeight: 'bold' }}>B</span></a></li>
+              <li className={filters.onu_mode === 'routing' ? "active" : ""} onClick={() => setFilters({...filters, onu_mode: filters.onu_mode === 'routing' ? 'all' : 'routing', page: 1})} style={{ cursor: 'pointer' }} title="Routing"><a><span style={{ fontWeight: 'bold' }}>R</span></a></li>
+            </ul>
+          </div>
+
+          {userRole !== 'readonly_users' && (
+            <div className="form-group" style={{ display: 'flex', alignItems: 'center', margin: 0 }}>
+              <a className="btn btn-primary btn-sm" style={{ height: '32px', padding: '4px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowBatchActions(!showBatchActions)} title="Batch actions">
+                <i className="fa fa-server"></i>
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* ROW 3 - Links */}
+        <div style={{ position: 'relative', textAlign: 'center', marginTop: '5px', marginBottom: '10px' }}>
+          <a className="text-muted" style={{ cursor: 'pointer', fontSize: '12px' }} onClick={() => setShowMoreFilters(!showMoreFilters)}>
             <i className={showMoreFilters ? "fa fa-chevron-up" : "fa fa-chevron-down"}></i> {showMoreFilters ? 'Less filters' : 'More filters'}
           </a>
           
-          <div style={{ position: 'absolute', right: '0px', top: '0', display: 'inline-block' }}>
-            <label style={{ fontSize: '13px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal' }}>
-              Import
-              <input type="file" style={{ display: 'none' }} accept=".csv" onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  alert('Fitur upload CSV sedang diproses, nantikan updatenya!');
-                }
-              }} />
-            </label>
-            <span style={{ color: '#337ab7', fontSize: '13px', margin: '0 5px' }}>/</span>
-            <a href="/api/onus/export" target="_blank" style={{ fontSize: '13px', color: '#337ab7', cursor: 'pointer', textDecoration: 'none' }}>Export</a>
-          </div>
+          {userRole !== 'readonly_users' && (
+            <div style={{ position: 'absolute', right: '0', top: '0' }}>
+              <label style={{ fontSize: '12px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal' }}>
+                Import
+                <input type="file" style={{ display: 'none' }} accept=".csv" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = e.target.value;
+                      fileInputRef.current.click();
+                    } else {
+                      alert('Fitur upload CSV sedang diproses, nantikan updatenya!');
+                    }
+                  }
+                }} />
+              </label>
+              <span style={{ color: '#337ab7', fontSize: '12px', margin: '0 5px' }}>/</span>
+              <a href="/api/onus/export" target="_blank" style={{ fontSize: '12px', color: '#337ab7', cursor: 'pointer', textDecoration: 'none' }}>Export</a>
+            </div>
+          )}
         </div>
+      </form>
 
         {showMoreFilters && (
           <div className="more-filters-panel" style={{ backgroundColor: '#f9f9f9', border: '1px solid #e3e3e3', padding: '15px 15px 5px 15px', borderRadius: '4px', marginBottom: '20px' }}>
@@ -540,24 +570,25 @@ function ConfiguredOnuContent() {
               </div>
             </div>
 
-            <div className="text-right" style={{ marginTop: '10px' }}>
-              <input 
-                type="file" 
-                accept=".csv" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
-                onChange={handleImportCsv} 
-              />
-              <a href="#" className="btn btn-link" title="Export" style={{ padding: '0 10px', fontSize: '13px' }}>
-                <i className="fa fa-upload"></i> Export
-              </a>
-              <a href="#" className="btn btn-link" title="Import" onClick={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} style={{ padding: '0 10px', fontSize: '13px' }}>
-                <i className="fa fa-download"></i> Import
-              </a>
-            </div>
+            {userRole !== 'readonly_users' && (
+              <div className="text-right" style={{ marginTop: '10px' }}>
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  ref={fileInputRef} 
+                  style={{ display: 'none' }} 
+                  onChange={handleImportCsv} 
+                />
+                <a href="/api/onus/export" target="_blank" className="btn btn-link" title="Export" style={{ padding: '0 10px', fontSize: '13px' }}>
+                  <i className="fa fa-upload"></i> Export
+                </a>
+                <a href="#" className="btn btn-link" title="Import" onClick={(e) => { e.preventDefault(); fileInputRef.current?.click(); }} style={{ padding: '0 10px', fontSize: '13px' }}>
+                  <i className="fa fa-download"></i> Import
+                </a>
+              </div>
+            )}
           </div>
         )}
-      </form>
       
       {showBatchActions && (
         <div className="margin-top" id="batch-actions-container">
@@ -627,7 +658,8 @@ function ConfiguredOnuContent() {
         </div>
 
         <div className="row" style={{ backgroundColor: '#fff', margin: 0 }}>
-          <table className="table table-striped table-hover" style={{ width: '100%', borderTop: '1px solid #ddd' }}>
+          <div className="table-responsive">
+            <table className="table table-striped table-hover" style={{ width: '100%', borderTop: '1px solid #ddd' }}>
             <thead>
               <tr style={{ backgroundColor: '#fff' }}>
                 {showBatchActions && (
@@ -684,12 +716,12 @@ function ConfiguredOnuContent() {
                   <td>{onu.sn_mac}</td>
                   <td>
                     <div style={{ marginBottom: '2px', wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '85px', lineHeight: '1.4' }}>{onu.olt ? `${onu.olt.id} - ${onu.olt.name}` : '---'}</div>
-                    <div style={{ wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '85px', lineHeight: '1.4' }}>{onu.pon_port ? onu.pon_port.replace('gpon-olt_', 'gpon_onu-') : ''}:{onu.onu_id}</div>
+                    <div style={{ wordWrap: 'break-word', wordBreak: 'break-word', maxWidth: '85px', lineHeight: '1.4' }}>{onu.pon_port ? onu.pon_port.replace(/gpon[-_]olt[-_]/i, 'gpon_onu-') : ''}:{onu.onu_id}</div>
                   </td>
                   <td>{onu.zone?.name || 'Zone 1'}</td>
                   <td>{onu.odb?.name || 'None'}</td>
                   <td className="text-center">
-                    {renderSignalBars(onu.signal)}
+                    {renderSignalBars(onu.signal, onu.status === 'Offline')}
                   </td>
                   <td>
                     {onu.mode === 'route' ? (
@@ -701,7 +733,7 @@ function ConfiguredOnuContent() {
                   <td>{onu.vlan || '125'}</td>
                   <td></td>
                   <td></td>
-                  <td>{onu.type || 'ALL'}</td>
+                  <td>{onu.onu_type?.name || 'ALL'}</td>
                   <td className="auth-date">
                     {new Date(onu.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' }).replace(/\//g, '-')}-<br/>
                     {new Date(onu.createdAt).getFullYear()}
@@ -710,6 +742,7 @@ function ConfiguredOnuContent() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>

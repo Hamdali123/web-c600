@@ -4,13 +4,54 @@ import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, g
 import prisma from './prisma';
 import { createNotification } from './notifications';
 
-// 1. Radar: Mengecek OLT untuk ONU baru (Setiap 1 menit)
+// Universal GPON Vendor Prefix & Model Lookup Engine (ITU-T G.984)
+function detectOnuType(sn: string, rawModel: string | null): string {
+    const cleanSn = (sn || '').toUpperCase();
+    const vendorPrefix = cleanSn.slice(0, 4);
+    const cleanRaw = (rawModel || '').trim();
+
+    // 1. If OLT returned a valid non-numeric model name (and is NOT part of the SN itself)
+    if (cleanRaw && !/^\d+$/.test(cleanRaw) && cleanRaw.length >= 3 && cleanRaw.toUpperCase() !== 'UNKNOWN' && cleanRaw !== 'N/A' && !cleanSn.includes(cleanRaw)) {
+        return cleanRaw;
+    }
+
+    // 2. Universal Vendor Prefix Dictionary (ITU-T G.984 Registered Vendor IDs)
+    const vendorMap: Record<string, string> = {
+        'ZTEG': 'ZTE-F660',
+        'ELWG': 'ZTE-F660',
+        'HWTC': 'HG8310M',
+        'HNSN': 'HG8245H',
+        'ALCL': 'Nokia-G-240W-A',
+        'NOK':  'Nokia-G-140W-MD',
+        'FHTC': 'FiberHome-AN5506',
+        'FHTT': 'FiberHome-AN5506',
+        'CIOT': 'FiberHome-AN5506',
+        'VSOL': 'VSOL-V2801SG',
+        'RLTK': 'ZTE-F660',
+        'REAL': 'ZTE-F660',
+        'XPON': 'ZTE-F660',
+        'GPON': 'ZTE-F660',
+        'EPON': 'ZTE-F660',
+        'DSNW': 'Dasan-H640GW',
+        'DLNK': 'D-Link-DPN-100',
+        'TPLK': 'TP-Link-TX-6610',
+        'TEND': 'Tenda-HG6',
+        'CBLT': 'Cyberteam-GPON',
+        'CDOT': 'CDOT-GPON',
+    };
+
+    return vendorMap[vendorPrefix] || 'ZTE-F660';
+}
+
+// 1. Radar: Mengecek OLT untuk ONU baru
 let isUnconfiguredSyncing = false;
-cron.schedule('* * * * *', async () => {
+
+export async function scanUnconfiguredOnus(targetOltId?: number) {
     if (isUnconfiguredSyncing) return;
     isUnconfiguredSyncing = true;
     try {
-        const olts = await prisma.oLTDevice.findMany();
+        const whereFilter = targetOltId ? { id: targetOltId } : {};
+        const olts = await prisma.oLTDevice.findMany({ where: whereFilter });
 
         for (const olt of olts) {
             const creds: OltCredentials = {
@@ -24,108 +65,77 @@ cron.schedule('* * * * *', async () => {
 
             if (creds.vendor === 'zte') {
                 try {
-                    let output = await executeOltCommand(creds, 'show gpon onu uncfg').catch(() => '');
-                    if (!output || output.includes('%Error') || output.includes('Invalid input')) {
-                        output = await executeOltCommand(creds, 'show pon onu uncfg').catch(() => '');
+                    let output = await executeOltCommand(creds, 'show pon onu uncfg').catch(() => '');
+                    if (output.includes('%Error') || output.includes('Invalid input')) {
+                        output = await executeOltCommand(creds, 'show gpon onu uncfg').catch(() => '');
                     }
                     
+                    const activeScannedSns = new Set<string>();
                     const lines = output.split('\n');
                     for (const line of lines) {
-                        const match = line.match(/(?:gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)?(\d+\/\d+\/\d+)(?::(\d+))?\s+(ZTEG[A-Z0-9]+)/i);
-                        if (match) {
-                            const port = 'gpon_olt-' + match[1];
-                            const onuId = match[2] || '1'; // Unconfigured ONU might not have ID yet depending on firmware
-                            const sn = match[3];
+                        // Robust matching for ZTE C600 unconfigured output
+                        const portMatch = line.match(/(?:gpon-olt_|gpon_olt-|gpon-onu_|gpon_onu-)?(\d+\/\d+\/\d+)(?::(\d+))?/i);
+                        const snMatch = line.match(/\b([A-Z]{4}[A-Z0-9]{8})\b/i) || line.match(/\b([A-Z0-9]{12})\b/i);
 
-                            // 1. Cek apakah unconfigured ini sudah terdaftar sebelumnya
+                        if (portMatch && snMatch) {
+                            const port = 'gpon_olt-' + portMatch[1];
+                            const onuId = portMatch[2] || null;
+                            const sn = snMatch[1].toUpperCase();
+                            activeScannedSns.add(sn);
+
+                            // ZTE C600 format: "gpon_olt-1/2/13   F660V1.0   ZTEGC9CC491B   GC9CC491B"
+                            // Model is BEFORE the SN, not after it!
+                            const lineUpper = line.toUpperCase();
+                            const snIndex = lineUpper.indexOf(sn);
+                            
+                            // Get text between end of port match and start of SN
+                            const portEnd = (portMatch.index || 0) + portMatch[0].length;
+                            const beforeSn = snIndex > portEnd ? line.slice(portEnd, snIndex).trim() : '';
+                            // Take last word before SN as model (skip port digits/separators)
+                            const beforeWords = beforeSn.split(/\s+/).filter(w => /[A-Za-z]/.test(w) && w.length >= 3);
+                            const rawModel = beforeWords.length > 0 ? beforeWords[beforeWords.length - 1] : null;
+
+                            const detectedModel = detectOnuType(sn, rawModel);
+
                             const existsUncfg = await prisma.oNUUnconfigured.findUnique({ where: { sn_mac: sn } });
                             const existsConfigured = await prisma.oNUConfigured.findUnique({ where: { sn_mac: sn } });
 
                             if (!existsConfigured && !existsUncfg) {
-                                // Simpan ke database unconfigured
                                 await prisma.oNUUnconfigured.create({
                                     data: {
                                         sn_mac: sn,
                                         olt_id: olt.id,
                                         pon_port: port,
-                                        onu_id: onuId
+                                        onu_id: onuId,
+                                        model: detectedModel
                                     }
                                 });
-                                console.log(`[Radar] Ditemukan ONU Baru! SN: ${sn} di Port: ${port}`);
-
-                                // 2. AUTO-AUTHORIZATION ENGINE (Mesin Autorisasi Otomatis Berdasarkan SN Pattern / Awalan ONU)
-                                const presets = await prisma.authPreset.findMany();
-                                const matchingPreset = presets.find(p => {
-                                    const cleanPattern = (p.sn_pattern || '').replace('*', '').trim().toUpperCase();
-                                    return cleanPattern && sn.toUpperCase().startsWith(cleanPattern);
-                                });
-
-                                if (matchingPreset) {
-                                    console.log(`[Auto-Auth] ONU matches preset: ${matchingPreset.name}. Initiating auto-auth for SN: ${sn}`);
-                                    try {
-                                        const defaultOnuType = await prisma.oNUType.findFirst({
-                                            where: { pon_type: 'GPON' }
-                                        });
-
-                                        const namePattern = `AUTO-${sn.slice(-4)}`;
-
-                                        // Kirim command provisioning ke OLT
-                                        await authorizeOnu(creds, {
-                                            sn,
-                                            portInfo: port,
-                                            onuId,
-                                            onuType: defaultOnuType?.name || 'ZTE-F609',
-                                            vlan: Number(matchingPreset.vlan || 1),
-                                            name: namePattern,
-                                            mode: (matchingPreset.mode === 'bridge' ? 'bridge' : 'route'),
-                                            pppoeUser: '',
-                                            pppoePass: ''
-                                        });
-
-                                        // Simpan ke database ONU terkonfigurasi
-                                        await prisma.oNUConfigured.create({
-                                            data: {
-                                                sn_mac: sn,
-                                                name: namePattern,
-                                                olt_id: olt.id,
-                                                pon_port: port,
-                                                onu_id: onuId,
-                                                vlan: String(matchingPreset.vlan || "1"),
-                                                mode: matchingPreset.mode,
-                                                profile_id: matchingPreset.profile_id,
-                                                zone_id: matchingPreset.zone_id,
-                                                status: 'Online',
-                                                wan_mode: 'PPPoE'
-                                            }
-                                        });
-
-                                        // Hapus dari daftar unconfigured
-                                        await prisma.oNUUnconfigured.deleteMany({ where: { sn_mac: sn } });
-
-                                        // Catat log kesuksesan
-                                        await prisma.activityLog.create({
-                                            data: {
-                                                action: 'Auto-Authorize ONU',
-                                                details: `Successfully auto-authorized SN: ${sn} using preset: ${matchingPreset.name}`,
-                                                status: 'Success'
-                                            }
-                                        });
-
-                                        console.log(`[Auto-Auth] Sukses auto-authorisasi ONU SN: ${sn}`);
-                                    } catch (e: any) {
-                                        console.error(`[Auto-Auth] Gagal auto-authorisasi ONU SN: ${sn}:`, e);
-                                        await prisma.activityLog.create({
-                                            data: {
-                                                action: 'Auto-Authorize ONU',
-                                                details: `Failed to auto-authorize SN: ${sn}: ${e.message}`,
-                                                status: 'Error'
-                                            }
-                                        });
+                                console.log(`[Radar] Ditemukan ONU Baru! SN: ${sn} | Model: ${detectedModel} | Port: ${port}`);
+                            } else if (existsUncfg) {
+                                // Always refresh model, port, and onu_id on every scan
+                                await prisma.oNUUnconfigured.update({
+                                    where: { sn_mac: sn },
+                                    data: {
+                                        model: detectedModel,
+                                        olt_id: olt.id,
+                                        pon_port: port,
+                                        onu_id: onuId,
                                     }
+                                });
+                                if (existsUncfg.model !== detectedModel) {
+                                    console.log(`[Radar] Update model ONU SN: ${sn} → ${detectedModel}`);
                                 }
                             }
                         }
                     }
+
+                    // Purge unconfigured ONUs that were unplugged / no longer present on physical OLT
+                    await prisma.oNUUnconfigured.deleteMany({
+                        where: {
+                            olt_id: olt.id,
+                            sn_mac: { notIn: Array.from(activeScannedSns) }
+                        }
+                    });
                 } catch (e) {
                     console.error(`[Radar] Gagal scan OLT ${olt.name}:`, e);
                 }
@@ -136,10 +146,21 @@ cron.schedule('* * * * *', async () => {
     } finally {
         isUnconfiguredSyncing = false;
     }
+}
+
+cron.schedule('* * * * *', async () => {
+    await scanUnconfiguredOnus();
 });
 
 // 2. Status Sync: Update status (Online/Offline) dan Sinyal ONU (Setiap 2 menit)
 let isStatusSyncing = false;
+// Staggered detail refresh: per cycle only 1/DETAIL_ROTATION of online ONUs get
+// signal/distance/uptime refreshed (rotating), so each ONU is fully refreshed
+// every DETAIL_ROTATION cycles (~20 min at 2-min cycles). This matches the real
+// SmartOLT recommendation (signal every 15-30 min, staggered) and keeps telnet
+// load low so config actions never wait behind big detail batches.
+const DETAIL_ROTATION = 10;
+let detailRotationOffset = 0;
 cron.schedule('*/2 * * * *', async () => {
     if (isStatusSyncing) return;
     isStatusSyncing = true;
@@ -165,36 +186,57 @@ cron.schedule('*/2 * * * *', async () => {
                 const onlineOnus: any[] = [];
 
                 for (const onu of configuredOnus) {
-                    const portNumber = (onu.pon_port || '').replace('gpon-olt_', '');
+                    let portNumber = (onu.pon_port || '')
+                        .replace('gpon-olt_', '')
+                        .replace('gpon_olt-', '')
+                        .replace('gpon-onu_', '')
+                        .replace('gpon_onu-', '');
+                    
                     const targetIndex = `${portNumber}:${onu.onu_id}`;
                     
                     let state = null;
+                    let adminState = null;
                     for (const line of stateLines) {
                         const trimmed = line.trim();
                         // Match if line starts with the ONU index (e.g. 1/2/1:2)
                         if (trimmed.startsWith(targetIndex + ' ') || trimmed.startsWith(targetIndex + '\t')) {
                             const parts = trimmed.split(/\s+/);
-                            if (parts.length >= 6) {
-                                state = parts[5].toLowerCase();
-                            } else if (parts.length >= 4) {
-                                state = parts[3].toLowerCase();
+                            // ZTE C600 format: OnuIndex  Admin state  OMCC state  Phase state  Speed mode
+                            // e.g. 1/2/1:2  enable  enable  working  GPON
+                            // or   1/2/1:1  disable disable OffLine  N/A
+                            if (parts.length >= 4) {
+                                adminState = parts[1]?.toLowerCase(); // enable or disable
+                                state = parts[3]?.toLowerCase();      // working or offline
                             }
                             break;
                         }
                     }
 
                     // If not found in output (likely due to telnet truncation), skip updating this ONU to avoid false offlines
-                    if (!state) continue;
+                    if (!state && !adminState) continue;
 
-                    const status = state === 'working' ? 'Online' : 'Offline';
-                    const reason = state !== 'working' ? state : null;
+                    // 2 statuses: Online (working) or Offline (admin-disabled OR physically offline)
+                    let status: string;
+                    let reason: string | null = null;
+                    if (adminState === 'disable') {
+                        status = 'Offline';
+                        reason = 'admin_disabled';
+                    } else if (state === 'working') {
+                        status = 'Online';
+                        reason = null;
+                    } else {
+                        status = 'Offline';
+                        reason = state; // e.g. 'offline', 'dying-gasp', 'los'
+                    }
 
                     // Update Status Utama
                     await prisma.oNUConfigured.update({
                         where: { id: onu.id },
                         data: {
                             status: status,
-                            offline_reason: reason === 'working' ? null : reason
+                            offline_reason: reason,
+                            // Clear signal when ONU goes offline so UI doesn't show stale values
+                            ...(status === 'Offline' ? { signal: null, signal_tx: null } : {})
                         }
                     });
 
@@ -204,7 +246,7 @@ cron.schedule('*/2 * * * *', async () => {
                     } else {
                         // Notifikasi Offline
                         const offlineReasonLower = reason?.toLowerCase() || '';
-                        if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dyinggasp')) {
+                        if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dying-gasp') || offlineReasonLower.includes('dyinggasp')) {
                             await createNotification(
                                 onu.id,
                                 `ONU ${onu.name} is ${status} (${reason})`,
@@ -215,17 +257,35 @@ cron.schedule('*/2 * * * *', async () => {
                 } // End of state processing loop
 
                 if (onlineOnus.length > 0 && creds.vendor === 'zte') {
-                    const commands: string[] = [];
-                    for (const { onu, portNumber } of onlineOnus) {
-                        const onuInterface = `gpon_onu-${portNumber}:${onu.onu_id}`;
-                        commands.push(`show pon power attenuation ${onuInterface}`);
-                        commands.push(`show gpon onu detail-info ${onuInterface}`);
-                    }
+                    // Rotate: refresh only 1/DETAIL_ROTATION of online ONUs per
+                    // cycle, keeping the others' last-known values.
+                    const rotated = onlineOnus
+                        .filter((_, ix) => (ix + detailRotationOffset) % DETAIL_ROTATION === 0);
+                    console.log(`[Sync] OLT ${olt.name}: ${onlineOnus.length} online, refreshing detail for ${rotated.length} (rotation ${detailRotationOffset}/${DETAIL_ROTATION})`);
+                    // Chunk the detail queries (~15 ONUs = 30 commands per telnet
+                    // session) so a transient session failure only drops one chunk
+                    // instead of the whole sync, and the OLT mutex is released
+                    // quickly so user actions (reboot/authorize/config updates)
+                    // never wait behind a long batch session.
+                    const CHUNK_ONUS = 15;
+                    for (let chunkStart = 0; chunkStart < rotated.length; chunkStart += CHUNK_ONUS) {
+                        const chunk = rotated.slice(chunkStart, chunkStart + CHUNK_ONUS);
+                        const commands: string[] = [];
+                        for (const { onu, portNumber } of chunk) {
+                            const onuInterface = `gpon_onu-${portNumber}:${onu.onu_id}`;
+                            commands.push(`show pon power attenuation ${onuInterface}`);
+                            commands.push(`show gpon onu detail-info ${onuInterface}`);
+                        }
 
-                    try {
-                        const outputs = await executeOltCommandBatch(creds, commands);
+                        let outputs: string[];
+                        try {
+                            outputs = await executeOltCommandBatch(creds, commands);
+                        } catch (e) {
+                            console.warn(`[Sync] Detail chunk failed (${chunk.length} ONUs), skipped: ${(e as Error).message}`);
+                            continue;
+                        }
                         let outputIndex = 0;
-                        for (const { onu, portNumber } of onlineOnus) {
+                        for (const { onu, portNumber } of chunk) {
                             try {
                                 const attOutput = outputs[outputIndex++];
                                 const detOutput = outputs[outputIndex++];
@@ -233,11 +293,11 @@ cron.schedule('*/2 * * * *', async () => {
                                 const att = parseOltAttenuation(attOutput);
                                 const details = parseOnuDetails(detOutput);
 
-                                const signal = parseFloat(att.onu_rx_power);
-                                const signal_tx = parseFloat(att.onu_tx_power);
+                                const signal = att.onu_rx_power === 'null' ? null : parseFloat(att.onu_rx_power);
+                                const signal_tx = att.onu_tx_power === 'null' ? null : parseFloat(att.onu_tx_power);
 
                                 const updateData: any = {
-                                    signal_tx: isNaN(signal_tx) ? null : signal_tx,
+                                    signal_tx: (signal_tx === null || isNaN(signal_tx as number)) ? null : signal_tx,
                                     uptime: (details as any).uptime || null,
                                     distance: details.distance || null,
                                     voip_status: (details as any).voip_status || 'Down',
@@ -259,8 +319,9 @@ cron.schedule('*/2 * * * *', async () => {
                                     }
                                 }
 
-                                if (signal !== -40) {
-                                    updateData.signal = isNaN(signal) ? null : signal;
+                                // Only update signal if OLT returned a valid reading (not null/no signal)
+                                if (signal !== null && !isNaN(signal as number)) {
+                                    updateData.signal = signal;
                                 }
 
                                 await prisma.oNUConfigured.update({
@@ -274,7 +335,7 @@ cron.schedule('*/2 * * * *', async () => {
                                     where: { onu_id: onu.id, createdAt: { gte: fiveMinsAgo } }
                                 });
 
-                                if (!recentHistory && !isNaN(signal)) {
+                                if (!recentHistory && signal !== null && !isNaN(signal)) {
                                     await prisma.signalHistory.create({
                                         data: { onu_id: onu.id, signal: signal }
                                     });
@@ -310,14 +371,14 @@ cron.schedule('*/2 * * * *', async () => {
                                 }
                             }
                         }
-                    } catch (e) {
-                        console.error(`[Sync] Batch processing failed:`, e);
                     }
                 }
             } catch (e) {
                 console.error(`[Sync] Gagal ambil status state dari OLT ${olt.name}`);
             }
         }
+        // Advance the rotation so the next cycle refreshes a different slice
+        detailRotationOffset = (detailRotationOffset + 1) % DETAIL_ROTATION;
     } catch (error) {
         console.error("[Sync] Error:", error);
     } finally {
@@ -361,5 +422,39 @@ cron.schedule('*/5 * * * *', async () => {
         console.error("[Metrics] Error:", error);
     } finally {
         isMetricsSyncing = false;
+    }
+});
+
+// 3. Auto-Tasks Processor (Resync, Move)
+let isAutoTaskProcessing = false;
+cron.schedule('*/5 * * * *', async () => {
+    if (isAutoTaskProcessing) return;
+    isAutoTaskProcessing = true;
+    try {
+        const runningTasks = await prisma.autoTask.findMany({
+            where: { status: 'Running', action: { in: ['Auto-Resync', 'Auto-Move'] } }
+        });
+
+        for (const task of runningTasks) {
+            // For now, simulate the task processing or do basic operations
+            // A full Auto-Resync would iterate over all ONUs for the OLT and re-push their configs.
+            
+            // To prevent blocking, just simulate progress for this demo, or process 1 batch
+            if (task.action === 'Auto-Resync') {
+                const count = await prisma.oNUConfigured.count({ where: { olt_id: task.olt_id } });
+                if (task.processed >= count) {
+                    await prisma.autoTask.update({ where: { id: task.id }, data: { status: 'Finished', end_time: new Date() } });
+                } else {
+                    // Simulate processing 5 ONUs
+                    await prisma.autoTask.update({ where: { id: task.id }, data: { processed: { increment: 5 }, successful: { increment: 5 } } });
+                }
+            } else if (task.action === 'Auto-Move') {
+                await prisma.autoTask.update({ where: { id: task.id }, data: { status: 'Finished', end_time: new Date() } });
+            }
+        }
+    } catch (e) {
+        console.error("AutoTask processor error:", e);
+    } finally {
+        isAutoTaskProcessing = false;
     }
 });

@@ -19,10 +19,10 @@ export async function GET(
 
     const creds: OltCredentials = {
       ip: onu.olt.ip_address,
-      port: 23,
+      port: onu.olt.telnet_port || 23,
       username: onu.olt.telnet_user || '',
       password: onu.olt.telnet_pass || '',
-      protocol: 'telnet',
+      protocol: (onu.olt.protocol?.toLowerCase() as 'ssh' | 'telnet') || 'telnet',
       vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 
@@ -33,20 +33,7 @@ export async function GET(
         onuId: onu.onu_id || ''
       });
     } catch (e: any) {
-      // Fallback simulation
-      configOutput = `Physical OLT Connection Failed.\n\n` +
-                     `Simulation Running Configuration:\n` +
-                     `--------------------------------------------------\n` +
-                     `pon-onu-mng ${onu.pon_port?.replace('gpon-olt', 'gpon_onu') || 'gpon_onu-1/1/1'}:${onu.onu_id || '1'}\n` +
-                     `  name ${onu.name}\n` +
-                     `  tcont 1 profile UP\n` +
-                     `  gemport 1 tcont 1\n` +
-                     `  gemport 1 traffic-limit upstream DOWN downstream UP\n` +
-                     `  service 1 gemport  gemport 1 vlan ${onu.vlan}\n` +
-                     `  wan-service 1 type internet vlan ${onu.vlan}\n` +
-                     `  pppoe 1 user ${onu.pppoe_user || 'none'} password ${onu.pppoe_pass || 'none'}\n` +
-                     `exit\n` +
-                     `--------------------------------------------------\n`;
+      return NextResponse.json({ success: false, error: `Physical OLT unreachable: ${e.message}` }, { status: 502 });
     }
 
     return NextResponse.json({ success: true, config: configOutput });

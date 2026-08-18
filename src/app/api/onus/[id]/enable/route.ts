@@ -33,7 +33,7 @@ export async function POST(
 
     const updatedOnu = await prisma.oNUConfigured.update({
       where: { id: onuId },
-      data: { enabled: true }
+      data: { enabled: true, offline_reason: null }
     });
 
     await logActivity('Enable ONU', `Enabled ONU: ${onu.name} (SN: ${onu.sn_mac}) on OLT ${onu.olt.name}`, 'Success');

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 export default function OnuTypesPage() {
   const [types, setTypes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);

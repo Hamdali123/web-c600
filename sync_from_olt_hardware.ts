@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { executeOltCommand, OltCredentials } from './src/lib/oltConnection';
+const { executeOltCommand } = require('./src/lib/oltConnection');
 
 const prisma = new PrismaClient();
 
@@ -11,7 +11,7 @@ async function main() {
   }
 
   const olt = olts[0];
-  const creds: OltCredentials = {
+  const creds = {
     ip: olt.ip_address,
     port: olt.telnet_port || 23,
     username: olt.telnet_user || '',
@@ -20,11 +20,43 @@ async function main() {
     vendor: (olt.vendor as any) || 'zte'
   };
 
-  console.log(`[Hardware Sync] Connecting to OLT ${olt.name} (${olt.ip_address}:${olt.telnet_port})...`);
-  
-  try {
-    // 1. Get all configured ONU indexes and states
-    const stateOutput = await executeOltCommand(creds, 'show gpon onu state');
+    console.log(`[Hardware Sync] Connecting to OLT ${olt.name} (${olt.ip_address}:${olt.telnet_port})...`);
+    
+    try {
+    // 1. Get all configured ONU indexes and states using raw TCP to avoid telnet-client truncation
+    const stateOutput = await new Promise<string>((resolve, reject) => {
+        const net = require('net');
+        const sock = new net.Socket();
+        sock.connect(olt.telnet_port || 23, olt.ip_address, () => {});
+        let buffer = '';
+        let loggedIn = false;
+        let cmdSent = false;
+        sock.on('data', (d: any) => {
+            const s = d.toString();
+            buffer += s;
+            if (!loggedIn && s.includes('Username:')) {
+                sock.write((olt.telnet_user || '') + '\n');
+            } else if (!loggedIn && s.includes('Password:')) {
+                sock.write((olt.telnet_pass || '') + '\n');
+            } else if (!loggedIn && s.includes('#')) {
+                loggedIn = true;
+                sock.write('terminal length 0\n');
+            } else if (loggedIn && !cmdSent && s.includes('#')) {
+                cmdSent = true;
+                sock.write('show gpon onu state\n');
+                buffer = ''; 
+            } else if (cmdSent) {
+                if (s.includes('#')) {
+                    sock.destroy();
+                    resolve(buffer);
+                } else if (s.includes('---- More (')) {
+                    sock.write(' ');
+                }
+            }
+        });
+        sock.on('error', reject);
+    });
+    
     const stateLines = stateOutput.split('\n');
     
     // Parse ONU indexes: format is slot/port/onu_id (e.g. 1/2/1:3)
@@ -47,10 +79,33 @@ async function main() {
 
     console.log(`[Hardware Sync] Found ${onuIndexes.length} ONUs configured across ${uniquePorts.size} PON ports.`);
 
+    // 1b. Delete DB records whose ONU is no longer registered on the physical OLT
+    // (stale records, e.g. ONUs removed from hardware but still in DB — they would
+    // otherwise cause wrong onu_id allocation for new ONUs). Only touches records
+    // belonging to this OLT.
+    const dbOnus = await prisma.oNUConfigured.findMany({ where: { olt_id: olt.id } });
+    const stale = dbOnus.filter(o => {
+      if (!o.pon_port || !o.onu_id) return false;
+      const match = o.pon_port.match(/gpon[-_]?olt[-_]?(\d+\/\d+\/\d+)/i);
+      if (!match) return false;
+      const p = match[1];
+      const s = onuIndexes.find(x => x.port === p && x.onuId === o.onu_id);
+      return !s;
+    });
+    if (stale.length > 0) {
+      console.log(`[Hardware Sync] Removing ${stale.length} stale DB records not present on OLT:`);
+      for (const s of stale) {
+        console.log(`  - #${s.id} ${s.name} (${s.sn_mac}) ${s.pon_port}:${s.onu_id}`);
+        await prisma.oNUConfigured.delete({ where: { id: s.id } });
+      }
+    } else {
+      console.log('[Hardware Sync] No stale DB records to remove.');
+    }
+
     let importedCount = 0;
 
     // 2. Fetch baseinfo (containing SN and Type) for each PON port
-    for (const port of uniquePorts) {
+    for (const port of Array.from(uniquePorts)) {
       console.log(`[Hardware Sync] Querying baseinfo for port gpon_olt-${port}...`);
       const baseinfoOutput = await executeOltCommand(creds, `show gpon onu baseinfo gpon_olt-${port}`);
       const baseinfoLines = baseinfoOutput.split('\n');
@@ -70,14 +125,23 @@ async function main() {
 
           const dbPonPort = `gpon-olt_${matchPort}`;
 
-          // Check if this ONU is already in the database
-          const existing = await prisma.oNUConfigured.findFirst({
+          // Check if this ONU is already in the database by SN MAC first, since it's unique
+          let existing = await prisma.oNUConfigured.findUnique({
             where: {
-              olt_id: olt.id,
-              pon_port: dbPonPort,
-              onu_id: onuId
+              sn_mac: sn
             }
           });
+
+          // If not found by SN, try checking if something exists on that port (shouldn't happen often if SN is unique, but fallback)
+          if (!existing) {
+             existing = await prisma.oNUConfigured.findFirst({
+               where: {
+                 olt_id: olt.id,
+                 pon_port: dbPonPort,
+                 onu_id: onuId
+               }
+             });
+          }
 
           const defaultName = `ONU-${matchPort}:${onuId}`;
 
@@ -87,6 +151,8 @@ async function main() {
               data: {
                 sn_mac: sn,
                 status: status,
+                pon_port: dbPonPort,
+                onu_id: onuId,
                 // Only update name if it starts with default ONU prefix to preserve custom names
                 name: existing.name.startsWith('ONU-') ? defaultName : existing.name
               }

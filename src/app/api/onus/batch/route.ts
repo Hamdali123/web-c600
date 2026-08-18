@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { rebootOnu, deleteOnu } from '@/lib/oltConnection';
+import { rebootOnu, deleteOnu, enableOnu, disableOnu } from '@/lib/oltConnection';
 import { logActivity } from '@/lib/activityLogger';
 
 export async function POST(request: Request) {
@@ -41,19 +41,29 @@ export async function POST(request: Request) {
 
       try {
         if (action === 'reboot') {
-          await rebootOnu(creds, onu.pon_port, onu.onu_id);
+          await rebootOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
           await logActivity('Reboot ONU', `Rebooted SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;
         } else if (action === 'delete') {
-          await deleteOnu(creds, onu.pon_port, onu.onu_id);
+          await deleteOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
           await prisma.oNUConfigured.delete({ where: { id: onu.id } });
           await logActivity('Delete ONU', `Deleted SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;
         } else if (action === 'enable') {
-          // Future implement enable logic
+          await enableOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
+          await prisma.oNUConfigured.update({
+            where: { id: onu.id },
+            data: { enabled: true, offline_reason: null }
+          });
+          await logActivity('Enable ONU', `Enabled SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;
         } else if (action === 'disable') {
-          // Future implement disable logic
+          await disableOnu(creds, { portInfo: onu.pon_port || '', onuId: onu.onu_id || '' });
+          await prisma.oNUConfigured.update({
+            where: { id: onu.id },
+            data: { enabled: false, status: 'Offline', offline_reason: 'admin_disabled', signal: null, signal_tx: null }
+          });
+          await logActivity('Disable ONU', `Disabled SN: ${onu.sn_mac} (${onu.name})`, 'Success');
           successCount++;
         }
       } catch (err: any) {

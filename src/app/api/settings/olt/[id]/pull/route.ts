@@ -4,7 +4,8 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const resolvedParams = await params;
   try {
     // We run the hardware sync script in the background.
     // In a real production app, this would be a proper background queue job.

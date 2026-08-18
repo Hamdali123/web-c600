@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 export default function AuthorizationsReportPage() {
   const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
   const fetchLogs = async () => {

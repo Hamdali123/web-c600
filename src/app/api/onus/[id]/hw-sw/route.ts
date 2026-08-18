@@ -28,10 +28,15 @@ export async function GET(
 
     // Construct show version command
     let command = '';
-    const boardPort = onu.pon_port || '';
+    let boardPort = onu.pon_port || '';
     if (creds.vendor === 'zte') {
-      const gponOnuPort = boardPort.replace('gpon-olt', 'gpon_onu') + ':' + onu.onu_id;
-      command = `show gpon onu version ${gponOnuPort}`;
+      if (!boardPort.includes('gpon_onu-') && !boardPort.includes('gpon-onu_') && !boardPort.includes('gpon-olt_')) {
+          boardPort = 'gpon_onu-' + boardPort;
+      }
+      const gponOnuPort = boardPort.includes('gpon-olt_') 
+        ? boardPort.replace('gpon-olt_', 'gpon_onu-') + ':' + onu.onu_id
+        : boardPort.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-') + ':' + onu.onu_id;
+      command = `show gpon onu detail-info ${gponOnuPort}`;
     } else {
       const portParts = boardPort.split('_'); // gpon-olt_0/1/1
       const frameSlotPort = portParts[1] || '';
@@ -42,18 +47,7 @@ export async function GET(
     try {
       output = await executeOltCommand(creds, command);
     } catch (e: any) {
-      // Fallback if physical OLT is not accessible
-      output = `Physical OLT Connection Failed.\n\n` +
-               `Simulation Output:\n` +
-               `--------------------------------------------------\n` +
-               `ONU GPON Port   : ${onu.pon_port || 'N/A'}\n` +
-               `ONU ID          : ${onu.onu_id || 'N/A'}\n` +
-               `ONU Type        : ${onu.onu_type_id || 'ALL'}\n` +
-               `Hardware Version: V3.0\n` +
-               `Software Version: V1.0.0P1T3\n` +
-               `Bootloader Ver  : V1.0.0\n` +
-               `Active Image    : image_1 (Committed)\n` +
-               `--------------------------------------------------\n`;
+      return NextResponse.json({ success: false, error: `Physical OLT unreachable: ${e.message}` }, { status: 502 });
     }
 
     return NextResponse.json({ success: true, sw_info: output });

@@ -31,11 +31,15 @@ export default function OltCliPage({ params }: { params: Promise<{ id: string }>
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
-    setTimeout(() => {
-      try {
-        fitAddon.fit();
-      } catch (e) {}
-    }, 50);
+    const tryFit = () => {
+      if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
+        try {
+          fitAddon.fit();
+        } catch (e) {}
+      }
+    };
+
+    setTimeout(tryFit, 100);
 
     let socket: WebSocket;
 
@@ -50,7 +54,8 @@ export default function OltCliPage({ params }: { params: Promise<{ id: string }>
          }
 
          setStatus('Connecting to WebSocket server...');
-         socket = new WebSocket('ws://' + window.location.hostname + ':3010');
+         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+         socket = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
          
          socket.onopen = () => {
            setStatus('Connected to Terminal Server. Authenticating to OLT...');
@@ -107,9 +112,7 @@ export default function OltCliPage({ params }: { params: Promise<{ id: string }>
       });
 
     const handleResize = () => {
-      try {
-        fitAddon.fit();
-      } catch (e) {}
+      tryFit();
     };
     window.addEventListener('resize', handleResize);
 

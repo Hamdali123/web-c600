@@ -12,18 +12,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [isSaving, setIsSaving] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [dropdowns, setDropdowns] = useState<Record<string, boolean>>({
-    reports: false,
-    settings: false,
-  });
+  const [user, setUser] = useState<{email: string, role: string, name: string} | null>(null);
 
-  const toggleDropdown = (name: string) => {
-    setDropdowns(prev => ({
-      ...prev,
-      [name]: !prev[name]
-    }));
-  };
-
+  useEffect(() => {
+    const match = document.cookie.match(new RegExp('(^| )auth_token=([^;]+)'));
+    if (match && match[2]) {
+      try {
+        const decoded = atob(match[2]);
+        setUser(JSON.parse(decoded));
+      } catch(e) {
+        if (match[2].startsWith('dummy-token')) {
+           setUser({ email: 'mohamadsanwani9@gmail.com', role: 'admin', name: 'Admin' });
+        }
+      }
+    }
+  }, []);
   useEffect(() => {
     setIsReady(true);
   }, [pathname, isLoginPage, router]);
@@ -63,10 +66,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     setShowSaveModal(false);
   };
 
-  if (!isReady && !isLoginPage) {
-    return null;
-  }
-
   if (isLoginPage) {
     return <>{children}</>;
   }
@@ -95,8 +94,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <li><a href="/graphs">Graphs</a></li>
               <li><a href="/diagnostics">Diagnostics</a></li>
               <li><a href="/reports/tasks">Tasks</a></li>
-              <li className={`dropdown ${dropdowns.reports ? 'open' : ''}`}>
-                <a className="dropdown-toggle" onClick={(e) => { e.preventDefault(); toggleDropdown('reports'); }} href="#">Reports <span className="caret"></span></a>
+              <li className="dropdown">
+                <a className="dropdown-toggle" data-toggle="dropdown" href="#">Reports <span className="caret"></span></a>
                 <ul className="dropdown-menu">
                   <li><a href="/reports/authorizations/list">Authorizations</a></li>
                   <li><a href="/reports/export">Export</a></li>
@@ -104,25 +103,30 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <li><a href="/config_comparison">Find config mismatches (DB vs OLT)</a></li>
                 </ul>
               </li>
-              <li>
-                <a href="#" className="save-configuration-anchor" onClick={(e) => { e.preventDefault(); setShowSaveModal(true); }}>
-                  Save Config
-                </a>
-              </li>
-              <li className={`dropdown ${dropdowns.settings ? 'open' : ''}`}>
-                <a className="dropdown-toggle" onClick={(e) => { e.preventDefault(); toggleDropdown('settings'); }} href="#">Settings <span className="caret"></span></a>
-                <ul className="dropdown-menu">
-                  <li><a href="/locations/listing">Zones</a></li>
-                  <li><a href="/odbs/listing">ODBs</a></li>
-                  <li><a href="/onu_types/listing">ONU types</a></li>
-                  <li><a href="/speed_profiles">Speed profiles</a></li>
-                  <li><a href="/olt">OLTs</a></li>
-                  <li><a href="/system_config">VPN & TR069</a></li>
-                  <li><a href="/onu_authorization_presets/listing">Authorization presets</a></li>
-                  <li><a href="/general">General</a></li>
-                  <li><a href="/general/listing/billing">Billing</a></li>
-                </ul>
-              </li>
+              {(!user || user.role === 'admin') && (
+                <li>
+                  <a href="#" className="save-configuration-anchor" onClick={(e) => { e.preventDefault(); setShowSaveModal(true); }}>
+                    Save Config
+                  </a>
+                </li>
+              )}
+
+              {(!user || user.role === 'admin') && (
+                <li className="dropdown">
+                  <a className="dropdown-toggle" data-toggle="dropdown" href="#">Settings <span className="caret"></span></a>
+                  <ul className="dropdown-menu">
+                    <li><a href="/locations/listing">Zones</a></li>
+                    <li><a href="/odbs/listing">ODBs</a></li>
+                    <li><a href="/onu_types/listing">ONU types</a></li>
+                    <li><a href="/speed_profiles">Speed profiles</a></li>
+                    <li><a href="/olt">OLTs</a></li>
+                    <li><a href="/system_config">VPN & TR069</a></li>
+                    <li><a href="/onu_authorization_presets/listing">Authorization presets</a></li>
+                    <li><a href="/general">General</a></li>
+                    <li><a href="/general/listing/billing">Billing</a></li>
+                  </ul>
+                </li>
+              )}
             </ul>
 
             <ul className="nav navbar-nav navbar-right">
@@ -131,7 +135,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <i className={`fa ${isDarkMode ? 'fa-sun-o' : 'fa-moon-o'} font-size-20`}></i>
                 </a>
               </li>
-              <li><a href="/auth" title="Edit user mohamadsanwani9@gmail.com"><i className="fa fa-user glyphicon-white font-size-20"> </i></a></li>
+              <li><a href="/auth" title={`Edit user ${user?.email || 'mohamadsanwani9@gmail.com'}`}><i className="fa fa-user glyphicon-white font-size-20"> </i></a></li>
               <li><a href="/auth/logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}><i className="glyphicon glyphicon-off glyphicon-white"> </i> Log out</a></li>
             </ul>
 

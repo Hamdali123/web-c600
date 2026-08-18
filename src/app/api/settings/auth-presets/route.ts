@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         use_other_all_tls_vlan: use_other_all_tls_vlan === true,
         use_cvlan: use_cvlan === true,
         cvlan_id: cvlan_id ? parseInt(cvlan_id) : null,
-        vlan: vlan ? parseInt(vlan) : null,
+        vlan: vlan ? String(vlan) : null,
         tag_transform_mode: tag_transform_mode || 'default',
         download_speed_id: download_speed_id ? parseInt(download_speed_id) : null,
         upload_speed_id: upload_speed_id ? parseInt(upload_speed_id) : null,

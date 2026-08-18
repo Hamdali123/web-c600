@@ -1,7 +1,0 @@
-show running-config
-!<mim>
-!configuration saved at 02:03:10 Tue Jun 23 2026 by write zdb
-!configuration saved at 02:03:12 Tue Jun 23 2026 by write txt
-!last configuration change at 13:43:45 Sun Jun 21 2026 by sanwanay
-!</mim>
-

@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 export default function SpeedProfilesPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'download' | 'upload'>('download');
 
   // Sync / OLT fields
@@ -217,8 +217,8 @@ export default function SpeedProfilesPage() {
                 </thead>
                 <tbody>
                   {filteredProfiles.map(p => {
-                    const speedVal = activeSubTab === 'download' ? p.download : p.upload;
-                    const speedDisplay = speedVal >= 102400 ? `${(speedVal / 1024).toFixed(0)} Mbps` : `${speedVal} kbps`;
+                   const speedVal = activeSubTab === 'download' ? p.download : p.upload;
+                    const speedDisplay = `${speedVal.toLocaleString()} kbps`;
                     return (
                       <tr key={p.id}>
                         <td>
@@ -242,8 +242,10 @@ export default function SpeedProfilesPage() {
                             {p.name}
                           </a>
                         </td>
-                        <td>Any</td>
-                        <td>No</td>
+                         <td>Any</td>
+                         <td>
+                           <span style={{ background: '#5cb85c', color: '#fff', padding: '2px 8px', borderRadius: '3px', fontSize: '11px', fontWeight: 'bold' }}>Yes</span>
+                         </td>
                         <td className="text-right" style={{ fontFamily: 'monospace' }}>{speedDisplay}</td>
                         <td>Internet</td>
                         <td className="text-center">

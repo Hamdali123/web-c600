@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { executeOltCommand, OltCredentials } from '@/lib/oltConnection';
+import { executeOltCommand, OltCredentials, normalizePonPort } from '@/lib/oltConnection';
 
 export async function GET(
   request: Request,
@@ -19,14 +19,14 @@ export async function GET(
 
     const creds: OltCredentials = {
       ip: onu.olt.ip_address,
-      port: 23,
+      port: onu.olt.telnet_port || 23,
       username: onu.olt.telnet_user || '',
       password: onu.olt.telnet_pass || '',
-      protocol: 'telnet',
+      protocol: (onu.olt.protocol?.toLowerCase() as 'ssh' | 'telnet') || 'telnet',
       vendor: (onu.olt.manufacturer?.toLowerCase() as 'zte' | 'huawei') || 'zte'
     };
 
-    const onuInterface = onu.pon_port ? `${onu.pon_port.replace('olt', 'onu')}:${onu.onu_id}` : '';
+    const onuInterface = creds.vendor === 'zte' ? `${normalizePonPort(onu.pon_port || '')}:${onu.onu_id}` : '';
     let ports: any[] = [];
 
     if (creds.vendor === 'zte') {
@@ -41,10 +41,10 @@ export async function GET(
         const blocks = output.split(/Interface\s*:\s*/i).filter(b => b.trim() !== '');
         
         ports = blocks.map(block => {
-          const portMatch = block.match(/^(eth_\d+\/\d+)/i);
-          const opMatch = block.match(/Operate status\s*:\s*(\w+)/i);
-          const adminMatch = block.match(/Admin status\s*:\s*(\w+)/i);
-          const speedMatch = block.match(/Speed config\s*:\s*(\w+)/i);
+          const portMatch = block.match(/^\s*(eth_\d+\/\d+)/i);
+          const opMatch = block.match(/Operate status\s*:\s*(\S+)/i);
+          const adminMatch = block.match(/Admin status\s*:\s*(\S+)/i);
+          const speedMatch = block.match(/Speed config\s*:\s*(\S+)/i);
 
           if (!portMatch) return null;
           
