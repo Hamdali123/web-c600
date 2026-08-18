@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 
 export async function GET() {
-  // Dalam aslinya, di sini Node.js menembakkan telnet/ssh ke OLT:
-  // const connection = await ssh.connect({...})
-  // const result = await connection.execCommand('show gpon onu uncfg')
-  
-  // Karena saat ini simulasi lokal, kita melempar jumlah ONU Unconfigured:
-  const simulationData = {
-    olt: 'ZTE-C320',
-    waitingAuth: Math.floor(Math.random() * 5) + 1, // Random 1-5 ONUs discovered
-    timestamp: new Date().toISOString()
-  };
+  const unconfigured = await prisma.oNUUnconfigured.findMany({
+    include: { olt: true },
+    orderBy: { discoveredAt: 'desc' }
+  });
 
-  return NextResponse.json(simulationData);
+  const waitingAuth = unconfigured.length;
+  const oltName = unconfigured[0]?.olt?.name || null;
+
+  return NextResponse.json({
+    olt: oltName,
+    waitingAuth,
+    timestamp: new Date().toISOString()
+  });
 }
