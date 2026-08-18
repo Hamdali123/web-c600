@@ -19,9 +19,6 @@ export default async function OltListingPage() {
               <span className="fa fa-plus"></span> Add OLT
             </Link>
             <a className="btn btn-primary margin-left margin-bottom export-button" style={{ marginLeft: '10px', cursor: 'pointer' }}>Export OLTs list</a>
-            <Link className="btn btn-yellow margin-left margin-bottom" href="/config_comparison" style={{ marginLeft: '10px' }}>
-              <i className="fa fa-search"></i> Find config mismatches
-            </Link>
           </div>
 
           <div className="table-responsive">

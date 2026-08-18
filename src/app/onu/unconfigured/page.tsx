@@ -392,7 +392,7 @@ function UnconfiguredOnuContent() {
       <br />
 
       <div style={{ marginBottom: '15px' }}>
-        <a href="/onu_authorization_presets/listing" className="btn btn-primary" target="_blank">
+        <a href="/settings/auth-presets" className="btn btn-primary" target="_blank">
           <i className="fa fa-list"></i> Authorization Presets
         </a>
         <div className="text-muted" style={{ marginTop: '5px' }}>

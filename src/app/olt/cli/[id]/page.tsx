@@ -2,8 +2,6 @@
 "use client";
 
 import React, { useEffect, useRef, useState, use } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import Link from 'next/link';
 
@@ -17,109 +15,122 @@ export default function OltCliPage({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     if (!terminalRef.current) return;
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Consolas, "Courier New", monospace',
-      fontSize: 14,
-      logLevel: 'off',
-      theme: {
-        background: '#1e1e1e',
-        foreground: '#cccccc',
-      }
-    });
-    
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(terminalRef.current);
+    let term: any = null;
+    let fitAddon: any = null;
+    let socket: WebSocket | null = null;
+    let disposed = false;
+
     const tryFit = () => {
-      if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
+      if (terminalRef.current && fitAddon && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
         try {
           fitAddon.fit();
         } catch (e) {}
       }
     };
 
-    setTimeout(tryFit, 100);
+    // xterm must be loaded client-side only (it references `self`, which does not
+    // exist in the Node SSR context — causes "ReferenceError: self is not defined").
+    Promise.all([import('xterm'), import('xterm-addon-fit')])
+      .then(([{ Terminal }, { FitAddon }]) => {
+        if (disposed || !terminalRef.current) return;
 
-    let socket: WebSocket;
+        term = new Terminal({
+          cursorBlink: true,
+          fontFamily: 'Consolas, "Courier New", monospace',
+          fontSize: 14,
+          logLevel: 'off',
+          theme: {
+            background: '#1e1e1e',
+            foreground: '#cccccc',
+          }
+        });
 
-    // Fetch OLT credentials
-    fetch(`/api/settings/olt/${id}`)
-      .then(res => res.json())
-      .then(olt => {
-         if (!olt || olt.error) {
-           term.writeln('Error: Could not load OLT details.');
-           setStatus('Error');
-           return;
-         }
+        fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(terminalRef.current);
+        setTimeout(tryFit, 100);
 
-         setStatus('Connecting to WebSocket server...');
-         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-         socket = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
-         
-         socket.onopen = () => {
-           setStatus('Connected to Terminal Server. Authenticating to OLT...');
-           
-           const creds = {
-             ip: olt.ip_address,
-             port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
-             username: olt.telnet_user || '',
-             password: olt.telnet_pass || '',
-             protocol: olt.protocol || 'telnet',
-             vendor: olt.vendor || 'zte'
-           };
+        // Fetch OLT credentials
+        fetch(`/api/settings/olt/${id}`)
+          .then(res => res.json())
+          .then(olt => {
+            if (disposed) return;
+            if (!olt || olt.error) {
+              term.writeln('Error: Could not load OLT details.');
+              setStatus('Error');
+              return;
+            }
 
-           socket.send(JSON.stringify({ type: 'connect', creds }));
-         };
+            setStatus('Connecting to WebSocket server...');
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
 
-         socket.onmessage = (event) => {
-           try {
-             const data = JSON.parse(event.data);
-             if (data.type === 'data') {
-               term.write(data.data);
-               if (status !== 'Connected') setStatus('Connected');
-             } else if (data.type === 'error') {
-               term.writeln(`\r\n\x1b[31mError: ${data.data}\x1b[0m\r\n`);
-               setStatus('Error: ' + data.data);
-             } else if (data.type === 'close') {
-               term.writeln('\r\n\x1b[33mConnection closed by server.\x1b[0m\r\n');
-               setStatus('Disconnected');
-             }
-           } catch(e) {}
-         };
+            socket.onopen = () => {
+              setStatus('Connected to Terminal Server. Authenticating to OLT...');
 
-         socket.onclose = () => {
-           term.writeln('\r\n\x1b[33mWebSocket Connection Closed.\x1b[0m\r\n');
-           setStatus('Disconnected');
-         };
+              const creds = {
+                ip: olt.ip_address,
+                port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
+                username: olt.telnet_user || '',
+                password: olt.telnet_pass || '',
+                protocol: olt.protocol || 'telnet',
+                vendor: olt.vendor || 'zte'
+              };
 
-         socket.onerror = () => {
-           term.writeln('\r\n\x1b[31mWebSocket Connection Error. Ensure terminal-server.js is running on port 3010.\x1b[0m\r\n');
-           setStatus('Connection Error');
-         };
+              socket!.send(JSON.stringify({ type: 'connect', creds }));
+            };
 
-         setWs(socket);
+            socket.onmessage = (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'data') {
+                  term.write(data.data);
+                  setStatus((prev) => (prev !== 'Connected' ? 'Connected' : prev));
+                } else if (data.type === 'error') {
+                  term.writeln(`\r\n\x1b[31mError: ${data.data}\x1b[0m\r\n`);
+                  setStatus('Error: ' + data.data);
+                } else if (data.type === 'close') {
+                  term.writeln('\r\n\x1b[33mConnection closed by server.\x1b[0m\r\n');
+                  setStatus('Disconnected');
+                }
+              } catch (e) {}
+            };
 
-         term.onData(data => {
-           if (socket.readyState === WebSocket.OPEN) {
-             socket.send(JSON.stringify({ type: 'data', data }));
-           }
-         });
-      })
-      .catch(err => {
-         term.writeln('Failed to fetch OLT details.');
-         setStatus('Error');
+            socket.onclose = () => {
+              term.writeln('\r\n\x1b[33mWebSocket Connection Closed.\x1b[0m\r\n');
+              setStatus('Disconnected');
+            };
+
+            socket.onerror = () => {
+              term.writeln('\r\n\x1b[31mWebSocket Connection Error. Ensure terminal-server is running on port 3010.\x1b[0m\r\n');
+              setStatus('Connection Error');
+            };
+
+            setWs(socket);
+
+            term.onData((data: string) => {
+              if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'data', data }));
+              }
+            });
+          })
+          .catch(err => {
+            if (!disposed) {
+              term.writeln('Failed to fetch OLT details.');
+              setStatus('Error');
+            }
+          });
+
+        const handleResize = () => {
+          tryFit();
+        };
+        window.addEventListener('resize', handleResize);
       });
 
-    const handleResize = () => {
-      tryFit();
-    };
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      window.removeEventListener('resize', handleResize);
+      disposed = true;
       if (socket) socket.close();
-      term.dispose();
+      if (term) term.dispose();
     };
   }, [id]);
 
