@@ -114,11 +114,18 @@ export function authorizeOnuCommand(params: {
         // no matter which port it is plugged into. Verified live on the C600:
         // 'vlan port eth_1/2 ...' and 'vlan port wifi_1/x ...' are accepted.
         const vlanPorts = (p: number, prefix: string) => {
-            if (vlans.length > 1) {
-                // Multiple VLANs (Hotspot + Mgmt/Internet): hybrid so both pass.
-                return `  vlan port ${prefix}${p} mode hybrid def-vlan ${mainVlan}\n  vlan port ${prefix}${p} vlan ${vlans.join(',')}`;
+            const isWifi = prefix.startsWith('wifi');
+            if (isWifi) {
+                // WiFi UNIs reject the follow-up 'vlan port ... vlan <list>' line
+                // ("%Error 223983: Port mode error" on the C600), so keep them
+                // single-VLAN tagged with the main VLAN.
+                return `  vlan port ${prefix}${p} mode tag vlan ${mainVlan}`;
             }
-            return `  vlan port ${prefix}${p} mode tag vlan ${mainVlan}`;
+            // 'mode hybrid def-vlan X' + 'vlan <list>' is accepted regardless of
+            // the port's current mode, while plain 'mode tag' is rejected with
+            // "%Error 223982: Please check if the port is in the VLAN." once the
+            // port has been hybrid/trunk before. Bridge all eth UNIs as hybrid.
+            return `  vlan port ${prefix}${p} mode hybrid def-vlan ${mainVlan}\n  vlan port ${prefix}${p} vlan ${vlans.join(',')}`;
         };
         const wifiUni = uni.replace('eth', 'wifi');
         portModeConfig = vlanPorts(1, uni);
@@ -605,6 +612,9 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
     if (mode === 'LAN' || mode === 'Transparent' || mode === 'Transparent_old') {
         commands.push(`vlan port ${ztePort} mode transparent`);
     } else if (mode === 'Access') {
+        // Plain 'mode tag' only works while the port is still default/tag;
+        // once the port has been hybrid/trunk the OLT rejects it with
+        // %Error 223982 ("Please check if the port is in the VLAN").
         commands.push(`vlan port ${ztePort} mode tag vlan ${vlans.trim()}`);
     } else if (mode === 'Trunk') {
         commands.push(`vlan port ${ztePort} mode trunk`);
@@ -794,13 +804,11 @@ export function updateServiceCommand(params: {
 
     let portModeConfig = '';
     if (params.mode === 'bridge') {
-        if (vlansList.length > 1) {
-             portModeConfig += `  vlan port ${ethUni} mode hybrid def-vlan ${mainVlan}\n  vlan port ${ethUni} vlan ${vlansList.join(',')}`;
-        } else {
-             // Matches the known-working bridge ONUs on this C600 (e.g. hotspot
-             // bridges: "vlan port eth_1/1 mode tag vlan 1000").
-             portModeConfig += `  vlan port ${ethUni} mode tag vlan ${mainVlan}`;
-        }
+        // Changing 'mode hybrid def-vlan X' on an already-hybrid port errors
+        // with %Error 223982 (def-vlan can only be set once, from the default
+        // state). 'mode hybrid' + 'vlan <list>' is accepted from any state and
+        // replaces the VLAN list, so it is safe to re-apply on updates.
+        portModeConfig += `  vlan port ${ethUni} mode hybrid\n  vlan port ${ethUni} vlan ${vlansList.join(',')}`;
     } else {
          portModeConfig += `  wan-ip ipv4 ping-response enable traceroute-response enable\n`;
          

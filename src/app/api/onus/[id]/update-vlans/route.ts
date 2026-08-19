@@ -58,7 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 mode: (onu.mode as any) || 'bridge',
                 pppoeUser: onu.pppoe_user || '',
                 pppoePass: onu.pppoe_pass || '',
-                onuType: onu.onu_type?.name || (await detectOnuType(creds, normalizePonPort(onu.pon_port || '') + ':' + (onu.onu_id || ''))) || 'ALL'
+                onuType: (await detectOnuType(creds, normalizePonPort(onu.pon_port || '') + ':' + (onu.onu_id || ''))) || onu.onu_type?.name || 'ALL'
             });
             output = await executeOltCommand(creds, commandList, { failOnError: true });
             await saveConfig(creds);

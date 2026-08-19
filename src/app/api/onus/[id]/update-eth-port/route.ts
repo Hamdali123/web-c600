@@ -36,9 +36,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         let output = '';
         if (creds.vendor === 'zte') {
-            // The DB onu_type is usually empty; ask the physical OLT which UNI
-            // naming (eth_1/x vs eth_0/x) this ONU actually uses.
-            const onuType = onu.onu_type?.name || (await detectOnuType(creds, onuInterface)) || 'ALL';
+            // The OLT is the source of truth for UNI naming (eth_1/x vs eth_0/x):
+            // the DB onu_type is often wrong (e.g. 'HG8242H' while the ONU is
+            // actually registered as type ALL). Ask the physical OLT first.
+            const onuType = (await detectOnuType(creds, onuInterface)) || onu.onu_type?.name || 'ALL';
             const commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp, onuType);
             output = await executeOltCommand(creds, commandList, { failOnError: true });
             await saveConfig(creds);

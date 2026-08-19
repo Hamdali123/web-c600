@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { executeOltCommand, OltCredentials } from '@/lib/oltConnection';
+import { executeOltCommand, OltCredentials, normalizePonPort } from '@/lib/oltConnection';
 
 export async function GET(
   request: Request,
@@ -28,17 +28,11 @@ export async function GET(
 
     // Construct show version command
     let command = '';
-    let boardPort = onu.pon_port || '';
     if (creds.vendor === 'zte') {
-      if (!boardPort.includes('gpon_onu-') && !boardPort.includes('gpon-onu_') && !boardPort.includes('gpon-olt_')) {
-          boardPort = 'gpon_onu-' + boardPort;
-      }
-      const gponOnuPort = boardPort.includes('gpon-olt_') 
-        ? boardPort.replace('gpon-olt_', 'gpon_onu-') + ':' + onu.onu_id
-        : boardPort.replace('olt', 'onu').replace('gpon-onu_', 'gpon_onu-') + ':' + onu.onu_id;
+      const gponOnuPort = `${normalizePonPort(onu.pon_port || '')}:${onu.onu_id}`;
       command = `show gpon onu detail-info ${gponOnuPort}`;
     } else {
-      const portParts = boardPort.split('_'); // gpon-olt_0/1/1
+      const portParts = normalizePonPort(onu.pon_port || '', false).split('-'); // gpon_olt-0/1/1
       const frameSlotPort = portParts[1] || '';
       command = `display ont version ${frameSlotPort} ${onu.onu_id}`;
     }

@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 pppoeUser: wanUser || onu.pppoe_user || '',
                 pppoePass: wanPass || onu.pppoe_pass || '',
                 wanRemote,
-                onuType: onu.onu_type?.name || (await detectOnuType(creds, normalizePonPort(onu.pon_port || '') + ':' + (onu.onu_id || ''))) || 'ALL'
+                onuType: (await detectOnuType(creds, normalizePonPort(onu.pon_port || '') + ':' + (onu.onu_id || ''))) || onu.onu_type?.name || 'ALL'
             });
             output = await executeOltCommand(creds, commandList, { failOnError: true });
             // Persist to the running OLT config so it survives a reboot.
