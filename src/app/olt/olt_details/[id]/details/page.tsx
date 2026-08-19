@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import PasswordReveal from '@/components/PasswordReveal';
 import SnmpTrafficChart from '@/components/SnmpTrafficChart';
+import { executeOltCommand, OltCredentials } from '@/lib/oltConnection';
 
 export default async function OltDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,12 +17,29 @@ export default async function OltDetailsPage({ params }: { params: Promise<{ id:
   }
 
   const isZte = olt.manufacturer?.toLowerCase() === 'zte' || !olt.manufacturer;
-  const imageSrc = isZte 
+  const imageSrc = isZte
     ? "https://sanwanay.smartolt.com/content/img/ZTE-C600.png"
     : "https://sanwanay.smartolt.com/content/img/Huawei-MA5608T.png";
-    
-  const uptimeStr = (olt as any).uptime && (olt as any).uptime !== "0 days" ? (olt as any).uptime : "103 days, 19:28"; 
-  const tempStr = olt.temperature ? `${olt.temperature}°C` : '50°C';
+
+  let liveUptime = '';
+  try {
+    const creds: OltCredentials = {
+      ip: olt.ip_address,
+      port: olt.telnet_port,
+      username: olt.telnet_user || '',
+      password: olt.telnet_pass || '',
+      protocol: (olt.protocol as 'telnet' | 'ssh') || 'telnet',
+      vendor: (olt.vendor as 'zte' | 'huawei') || 'zte'
+    };
+    const out = await executeOltCommand(creds, olt.vendor === 'huawei' ? 'display version' : 'show software');
+    const m = out.match(/System uptime is (\d+) day\(s\), (\d+) hour\(s\), (\d+) minute\(s\)/i);
+    if (m) liveUptime = `${m[1]} days, ${m[2]}:${String(m[3]).padStart(2, '0')}`;
+  } catch (e) {
+    console.error("Uptime fetch error:", e);
+  }
+
+  const uptimeStr = liveUptime || ((olt as any).uptime && (olt as any).uptime !== "0 days" ? (olt as any).uptime : "N/A");
+  const tempStr = olt.temperature && olt.temperature > 0 ? `${olt.temperature}°C` : 'N/A';
 
   return (
     <div className="row">

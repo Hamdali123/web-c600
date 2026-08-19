@@ -25,7 +25,7 @@ export async function GET(
         password: olt.telnet_pass || '',
         protocol: (olt.protocol as any) || 'telnet',
         vendor: (olt.vendor as any) || 'zte'
-      }, 'show version-running');
+      }, 'show software');
     } else {
       info = await executeOltCommand({
         ip: olt.ip_address,
