@@ -46,7 +46,8 @@ export async function GET(
     const noSignal = (attenuation as any).no_signal;
     const isOnline = !noSignal && !isNaN(signalValue);
 
-    // Update DB
+    // Update DB (last_online only advances when the ONU is actually reachable,
+    // so the UI can show a truthful "offline since" duration)
     await prisma.oNUConfigured.update({
       where: { id: onu.id },
       data: { 
@@ -54,7 +55,7 @@ export async function GET(
         signal_tx: isNaN(oltSignalValue) ? null : oltSignalValue,
         distance: (extraDetails as any).distance || onu.distance,
         uptime: (extraDetails as any).uptime || onu.uptime,
-        last_online: new Date(),
+        last_online: isOnline ? new Date() : onu.last_online,
         status: isOnline ? 'Online' : 'Offline',
         offline_reason: isOnline ? null : (onu.offline_reason || 'los')
       }

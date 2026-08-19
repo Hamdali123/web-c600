@@ -95,8 +95,9 @@ export async function executeOltCommand(creds: OltCredentials, command: string, 
       });
     });
   } else {
-     const connection = new Telnet();
-       try {
+    const runTelnet = async (): Promise<string> => {
+      const connection = new Telnet();
+      try {
         await connection.connect({
            host: creds.ip, 
            port: creds.port || 23, 
@@ -128,21 +129,42 @@ export async function executeOltCommand(creds: OltCredentials, command: string, 
 
        let fullOutput = '';
        for (const line of lines) {
+           if (!connection.socket || !connection.socket.writable) {
+               // Session was closed by the OLT mid-script (e.g. an 'exit' logged out
+               // after an earlier command failed). Surface the last output so the
+               // real %Error is visible instead of a bare 'socket not writable'.
+               throw new Error(`OLT closed the session (socket not writable). Last output:\n${fullOutput.trimEnd().slice(-600)}`);
+           }
            const out = await connection.send(line, { waitFor: promptRegex, execTimeout: 60000 });
            fullOutput += out + '\n';
+           if (opts?.failOnError) {
+               const errorLine = out.split('\n').find((l: string) => /%Error\s*\d*:/.test(l));
+               if (errorLine) throw new Error(errorLine.trim());
+           }
        }
 
        await connection.end();
-       assertCliOk(fullOutput, opts);
        return fullOutput;
+     } catch (error: any) {
+       try { await connection.destroy(); } catch (e) {}
+       throw error;
+     }
+    };
 
-} catch (error: any) {
-           try { await connection.destroy(); } catch (e) {}
-           if (String(error?.message || '').includes('%Error')) {
-               throw error;
-           }
-           throw new Error(`Telnet connection failed: ${error.message}`);
-       }
+    // Retry transient session failures (OLT session limits under worker load)
+    let lastError: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await runTelnet();
+      } catch (error: any) {
+        if (String(error?.message || '').includes('%Error')) throw error;
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+        }
+      }
+    }
+    throw new Error(`Telnet connection failed: ${lastError?.message}`);
    }
   } finally {
     release();
@@ -184,40 +206,57 @@ export async function executeOltCommandBatch(creds: OltCredentials, commands: st
         });
       });
     } else {
-       const Telnet = require('telnet-client').Telnet;
-       const connection = new Telnet();
-       try {
-        await connection.connect({
-           host: creds.ip, port: creds.port || 23, timeout: 180000, negotiationMandatory: false, disableLogon: true
-        });
-       const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
-       try {
-           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
-       } catch (e) {
-           await connection.send('\n', { waitFor: /name[: ]*$|username[: ]*$/i, timeout: 5000 }).catch(() => null);
-           await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
-       }
-       await connection.send(creds.password || '', { waitFor: promptRegex, timeout: 10000 });
-       
-       try {
-         await connection.send('terminal length 0', { waitFor: promptRegex, timeout: 5000 });
-       } catch (e) {
-         try { await connection.send('length 0', { waitFor: promptRegex, timeout: 5000 }); } catch (err) {}
-       }
+       const runTelnet = async (): Promise<string[]> => {
+         const Telnet = require('telnet-client').Telnet;
+         const connection = new Telnet();
+         try {
+          await connection.connect({
+             host: creds.ip, port: creds.port || 23, timeout: 180000, negotiationMandatory: false, disableLogon: true
+          });
+         const promptRegex = /[#>]\s*$|\[yes\/no\]:?\s*$|\(y\/n\)\[n\]:?\s*$/i;
+         try {
+             await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+         } catch (e) {
+             await connection.send('\n', { waitFor: /name[: ]*$|username[: ]*$/i, timeout: 5000 }).catch(() => null);
+             await connection.send(creds.username || '', { waitFor: /password[: ]*$/i, timeout: 5000 });
+         }
+         await connection.send(creds.password || '', { waitFor: promptRegex, timeout: 10000 });
+         
+         try {
+           await connection.send('terminal length 0', { waitFor: promptRegex, timeout: 5000 });
+         } catch (e) {
+           try { await connection.send('length 0', { waitFor: promptRegex, timeout: 5000 }); } catch (err) {}
+         }
 
-       const outputs: string[] = [];
-       for (const cmd of commands) {
-           const out = await connection.send(cmd, { waitFor: promptRegex, timeout: 60000 });
-           outputs.push(out);
-       }
-       await connection.end();
-       return outputs;
+         const outputs: string[] = [];
+         for (const cmd of commands) {
+             const out = await connection.send(cmd, { waitFor: promptRegex, timeout: 60000 });
+             outputs.push(out);
+         }
+         await connection.end();
+         return outputs;
 
-       } catch (error: any) {
-           try { await connection.destroy(); } catch (e) {}
-           throw new Error(`Telnet connection failed: ${error.message}`);
+         } catch (error: any) {
+            try { await connection.destroy(); } catch (e) {}
+            throw error;
+         }
+       };
+
+       // Retry transient session failures (OLT session limits under worker load)
+       let lastError: any = null;
+       for (let attempt = 0; attempt < 3; attempt++) {
+         try {
+           return await runTelnet();
+         } catch (error: any) {
+           if (String(error?.message || '').includes('%Error')) throw error;
+           lastError = error;
+           if (attempt < 2) {
+             await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+           }
+         }
        }
-    }
+       throw new Error(`Telnet connection failed: ${lastError?.message}`);
+     }
   } finally {
     release();
   }

@@ -20,7 +20,9 @@ export default function ViewOnuPage() {
   const [terminalOutput, setTerminalOutput] = useState('');
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [ethPorts, setEthPorts] = useState<any[]>([]);
+  const [wifiPorts, setWifiPorts] = useState<any[]>([]);
   const [ethPortsLoading, setEthPortsLoading] = useState(false);
+  const [wifiEnabled, setWifiEnabled] = useState(true);
 
   // Modals state
   const [activeTab, setActiveTab] = useState('graphs');
@@ -47,6 +49,24 @@ export default function ViewOnuPage() {
   const [vlans, setVlans] = useState<any[]>([]);
   const [speedProfiles, setSpeedProfiles] = useState<any[]>([]);
   const [selectedSpeedProfile, setSelectedSpeedProfile] = useState('');
+  const [hwSn, setHwSn] = useState('');
+  const [hwPort, setHwPort] = useState('');
+  const [ponPorts, setPonPorts] = useState<any[]>([]);
+  const [ponPortsLoading, setPonPortsLoading] = useState(false);
+
+  const openHardwareModal = (currentSn: string, oltId: number) => {
+    setHwSn(currentSn);
+    setHwPort('');
+    setActiveModal('editHardware');
+    if (ponPorts.length === 0 && oltId) {
+      setPonPortsLoading(true);
+      fetch(`/api/settings/olt/${oltId}/pon-ports`)
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d)) setPonPorts(d); })
+        .catch(() => {})
+        .finally(() => setPonPortsLoading(false));
+    }
+  };
 
   // Charts
   const [isLive, setIsLive] = useState(false);
@@ -124,9 +144,22 @@ export default function ViewOnuPage() {
             rx: item.signal
           };
         }));
-        
-        // Note: Traffic history is not currently stored in DB, so we do not generate mock data here.
-        setTrafficHistory([]);
+      }
+      
+      // Real 24h traffic history recorded by the auto-discovery worker
+      const tRes = await fetch(`/api/onus/${params.id}/traffic?history=24h`);
+      const tData = await tRes.json();
+      if (tData.success && Array.isArray(tData.history)) {
+        setTrafficHistory(tData.history.map((item: any) => {
+          const dt = new Date(item.time);
+          const timeStr = dt.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' });
+          const dateStr = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).replace(/ /g, '-');
+          return {
+            time: `${timeStr} ${dateStr}`,
+            rx: item.rx,
+            tx: item.tx
+          };
+        }));
       }
     } catch (e) {}
   }, [params.id]);
@@ -138,6 +171,7 @@ export default function ViewOnuPage() {
       const data = await res.json();
       if (data.success && data.ports) {
         setEthPorts(data.ports);
+        if (Array.isArray(data.wifi)) setWifiPorts(data.wifi);
       }
     } catch (e) {
       console.error(e);
@@ -172,7 +206,9 @@ export default function ViewOnuPage() {
             const newItem = {
               time: `${nTime} ${nDate}`,
               rx: data.rx,
-              tx: data.tx
+              tx: data.tx,
+              rxPps: data.rxPps || 0,
+              txPps: data.txPps || 0
             };
             setLiveTraffic(prev => {
               const next = [...prev, newItem];
@@ -340,6 +376,16 @@ export default function ViewOnuPage() {
     return `${kbps}K`;
   };
 
+  const timeAgo = (date?: string | null) => {
+    if (!date) return '';
+    const diff = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return `${Math.floor(diff / 604800)}w ago`;
+  };
+
   return (
     <div className="container-fluid onu-wrapper" style={{ paddingBottom: '50px' }}>
       <h2>View ONU</h2>
@@ -354,28 +400,28 @@ export default function ViewOnuPage() {
           <dl className="dl-horizontal">
             <dt>OLT</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7', fontWeight: 'bold' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ color: '#337ab7', fontWeight: 'bold' }}>
                 {onu.olt?.name || 'Unknown OLT'}
               </a>
             </dd>
 
             <dt>Board</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ color: '#337ab7' }}>
                 {onu.pon_port?.split('/')[1] || '0'}
               </a>
             </dd>
 
             <dt>Port</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ color: '#337ab7' }}>
                 {onu.pon_port?.split('/')[2] || '0'}
               </a>
             </dd>
 
             <dt>ONU</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ color: '#337ab7' }}>
                 {`gpon_onu-${onu.pon_port?.replace(/gpon[-_]olt[-_]/i, '') || '0/0/0'}:${onu.onu_id}`}
               </a>
             </dd>
@@ -385,14 +431,14 @@ export default function ViewOnuPage() {
 
             <dt>SN</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#337ab7' }}>
                 {onu.sn_mac}
               </a>
             </dd>
 
             <dt>ONU type</dt>
             <dd>
-              <a href="#" onClick={(e) => { e.preventDefault(); setActiveModal('editHardware'); }} style={{ color: '#337ab7' }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openHardwareModal(onu.sn_mac, onu.olt_id) }} style={{ color: '#337ab7' }}>
                 {onu.onu_type?.name || 'ALL'}
               </a>
             </dd>
@@ -475,7 +521,9 @@ export default function ViewOnuPage() {
                 {' '}
                 {onu.status === 'Online' ? <i className="fa fa-check-circle" style={{ color: '#5cb85c' }}></i> : <i className="fa fa-times-circle" style={{ color: '#d9534f' }}></i>}
               </span>
-              <span className="text-muted small" style={{ marginLeft: '5px' }}>(3 weeks ago)</span>
+              <span className="text-muted small" style={{ marginLeft: '5px' }}>
+                {onu.status === 'Online' ? '(online)' : (onu.last_online ? `(since ${timeAgo(onu.last_online)})` : '')}
+              </span>
               <span className="text-muted" style={{ marginLeft: '10px', fontSize: '11px' }}>auto-refresh in {refreshCountdown}s</span>
               {onu.status !== 'Online' && onu.offline_reason && onu.offline_reason?.toLowerCase() !== 'los' && (
                 <span className="text-muted small" style={{ marginLeft: '5px' }}>({onu.offline_reason})</span>
@@ -625,53 +673,60 @@ export default function ViewOnuPage() {
             <dt></dt>
             <dd style={{ marginTop: '15px' }}>
               <div className="table-responsive">
-                <table className="table table-bordered table-condensed" style={{ backgroundColor: '#fff', fontSize: '13px' }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ width: '50px' }}>
-                        <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', textAlign: 'center', height: '60px', color: '#999', fontSize: '11px' }}>Mbps</div>
-                      </td>
-                      <td style={{ verticalAlign: 'middle', width: '25%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', height: '60px', width: '100%' }}>
-                           {/* chart placeholder */}
-                        </div>
-                      </td>
-                      <td colSpan={4} style={{ verticalAlign: 'middle' }}>
-                         <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                              <span><strong>{new Date().toLocaleTimeString([], { hour12: false })}</strong></span>
-                              <span style={{ color: '#f0ad4e' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e', marginRight: '4px' }}></span>upload: 0</span>
-                              <span style={{ color: '#337ab7' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#337ab7', marginRight: '4px' }}></span>download: 0</span>
-                            </div>
-                         </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={2}>
-                        <strong><i className="fa fa-arrow-up"></i> U Speed</strong>
-                        <span style={{ float: 'right' }}>{(liveTraffic.length > 0 ? liveTraffic[liveTraffic.length - 1].tx : 0).toFixed(2)} Mbps</span>
-                      </td>
-                      <td><strong>Max</strong></td>
-                      <td>1.76 Mbps</td>
-                      <td><strong>Pps</strong></td>
-                      <td>0</td>
-                      <td><strong>Avg size</strong></td>
-                      <td>0</td>
-                    </tr>
-                    <tr>
-                      <td colSpan={2}>
-                        <strong><i className="fa fa-arrow-down"></i> D Speed</strong>
-                        <span style={{ float: 'right' }}>{(liveTraffic.length > 0 ? liveTraffic[liveTraffic.length - 1].rx : 0).toFixed(2)} Mbps</span>
-                      </td>
-                      <td><strong>Max</strong></td>
-                      <td>58.14 Mbps</td>
-                      <td><strong>Pps</strong></td>
-                      <td>0</td>
-                      <td><strong>Avg size</strong></td>
-                      <td>0</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <table className="table table-bordered table-condensed" style={{ backgroundColor: '#fff', fontSize: '13px' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ width: '50px' }}>
+                      <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', textAlign: 'center', height: '60px', color: '#999', fontSize: '11px' }}>Mbps</div>
+                    </td>
+                    <td style={{ verticalAlign: 'middle', width: '25%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', height: '60px', width: '100%' }}>
+                        {liveTraffic.length > 1 && (
+                          <ResponsiveContainer width="100%" height={60}>
+                            <LineChart data={liveTraffic} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                              <Line type="monotone" dataKey="rx" stroke="#337ab7" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                              <Line type="monotone" dataKey="tx" stroke="#f0ad4e" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </td>
+                    <td colSpan={4} style={{ verticalAlign: 'middle' }}>
+                       <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span><strong>{liveTraffic.length > 0 ? liveTraffic[liveTraffic.length - 1].time.split(' ')[0] : new Date().toLocaleTimeString([], { hour12: false })}</strong></span>
+                            <span style={{ color: '#f0ad4e' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e', marginRight: '4px' }}></span>upload: {(liveTraffic[liveTraffic.length - 1]?.tx || 0).toFixed(2)}</span>
+                            <span style={{ color: '#337ab7' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#337ab7', marginRight: '4px' }}></span>download: {(liveTraffic[liveTraffic.length - 1]?.rx || 0).toFixed(2)}</span>
+                          </div>
+                       </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2}>
+                      <strong><i className="fa fa-arrow-up"></i> U Speed</strong>
+                      <span style={{ float: 'right' }}>{(liveTraffic.length > 0 ? liveTraffic[liveTraffic.length - 1].tx : 0).toFixed(2)} Mbps</span>
+                    </td>
+                    <td><strong>Max</strong></td>
+                    <td>{Math.max(0, ...liveTraffic.map(d => d.tx || 0)).toFixed(2)} Mbps</td>
+                    <td><strong>Pps</strong></td>
+                    <td>{liveTraffic[liveTraffic.length - 1]?.txPps || 0}</td>
+                    <td><strong>Avg size</strong></td>
+                    <td>{liveTraffic[liveTraffic.length - 1]?.txPps ? ((liveTraffic[liveTraffic.length - 1].tx * 1000000 / 8) / liveTraffic[liveTraffic.length - 1].txPps).toFixed(0) : 0}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2}>
+                      <strong><i className="fa fa-arrow-down"></i> D Speed</strong>
+                      <span style={{ float: 'right' }}>{(liveTraffic.length > 0 ? liveTraffic[liveTraffic.length - 1].rx : 0).toFixed(2)} Mbps</span>
+                    </td>
+                    <td><strong>Max</strong></td>
+                    <td>{Math.max(0, ...liveTraffic.map(d => d.rx || 0)).toFixed(2)} Mbps</td>
+                    <td><strong>Pps</strong></td>
+                    <td>{liveTraffic[liveTraffic.length - 1]?.rxPps || 0}</td>
+                    <td><strong>Avg size</strong></td>
+                    <td>{liveTraffic[liveTraffic.length - 1]?.rxPps ? ((liveTraffic[liveTraffic.length - 1].rx * 1000000 / 8) / liveTraffic[liveTraffic.length - 1].rxPps).toFixed(0) : 0}</td>
+                  </tr>
+                </tbody>
+              </table>
               </div>
             </dd>
           </>
@@ -690,7 +745,7 @@ export default function ViewOnuPage() {
                     <AreaChart data={isLive ? liveTraffic : (trafficHistory.length > 0 ? trafficHistory : [{time: 'Now', rx: 0, tx: 0}])} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                       <XAxis dataKey="time" axisLine={true} tickLine={false} tick={<CustomXAxisTick />} />
-                      <YAxis axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(val) => (val > 0 ? val.toFixed(1) + 'M' : '0.0M')} label={{ value: 'bits per second', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: '#888' } }} />
+                      <YAxis axisLine={true} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(val) => (val > 0 ? val.toFixed(1) + 'M' : '0.0M')} label={{ value: 'Mbps', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: '10px', fill: '#888' } }} />
                       <Tooltip contentStyle={{ borderRadius: '4px', border: '1px solid #ddd', fontSize: '12px' }} />
                       <Area type="stepAfter" dataKey="rx" stroke="#337ab7" fill="rgba(51, 122, 183, 0.2)" strokeWidth={2} dot={false} isAnimationActive={false} name="Download" />
                       <Area type="stepAfter" dataKey="tx" stroke="#f0ad4e" fill="rgba(240, 173, 78, 0.2)" strokeWidth={2} dot={false} isAnimationActive={false} name="Upload" />
@@ -809,7 +864,7 @@ export default function ViewOnuPage() {
         <dd style={{ paddingTop: '15px' }}>
           <div className="checkbox" style={{ margin: '0 0 10px 0' }}>
             <label style={{ fontWeight: 'bold' }}>
-              <input type="checkbox" defaultChecked /> Enable
+              <input type="checkbox" checked={wifiEnabled} onChange={(e) => setWifiEnabled(e.target.checked)} /> Enable
             </label>
           </div>
           <table className="table table-striped table-condensed" style={{ margin: '0px' }}>
@@ -824,39 +879,50 @@ export default function ViewOnuPage() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style={{ color: '#337ab7' }}>
-                  <div style={{ marginBottom: '5px' }}>
-                    <span style={{ backgroundColor: '#2f5572', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '3px', fontWeight: 'bold' }}>
-                      <i className="fa fa-wifi"></i> 2.4 GHz
-                    </span>
-                  </div>
-                  wifi_1/1
-                </td>
-                <td>Enabled</td>
-                <td>LAN</td>
-                <td></td>
-                <td>No control</td>
-                <td>
-                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }} onClick={(e) => { e.preventDefault(); setWifiConfig({ port: 'wifi_1/1', mode: 'LAN', adminState: 'Enabled', ssid: '' }); setActiveModal('configWifiPort'); }}>
-                    <i className="fa fa-plus-circle"></i> Configure
-                  </a>
-                </td>
-              </tr>
-              <tr>
-                <td colSpan={6}>
-                  <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }} onClick={(e) => { e.preventDefault(); setWifiConfig({ port: 'wifi_1/2', mode: 'LAN', adminState: 'Enabled', ssid: '' }); setActiveModal('configWifiPort'); }}>
-                    <i className="fa fa-plus"></i> Add new SSID
-                  </a>
-                </td>
-              </tr>
+              {wifiPorts.map((p, idx) => (
+                <tr key={idx}>
+                  <td style={{ color: '#337ab7' }}>
+                    <div style={{ marginBottom: '5px' }}>
+                      <span style={{ backgroundColor: '#2f5572', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '3px', fontWeight: 'bold' }}>
+                        <i className="fa fa-wifi"></i> 2.4 GHz
+                      </span>
+                    </div>
+                    {p.port}
+                  </td>
+                  <td>{p.adminState} {['up', 'enable'].includes(p.operateState?.toLowerCase()) ? '' : (['n/a', 'unknown'].includes(p.operateState?.toLowerCase()) ? '' : <span style={{ color: 'red' }}>(Down)</span>)}</td>
+                  <td>{p.mode}</td>
+                  <td>{p.ssid || ''}</td>
+                  <td>{p.dhcp}</td>
+                  <td>
+                    <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }} onClick={(e) => { e.preventDefault(); setWifiConfig({ port: p.port, mode: p.mode, adminState: p.adminState, ssid: p.ssid || '' }); setActiveModal('configWifiPort'); }}>
+                      <i className="fa fa-plus-circle"></i> Configure
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {wifiPorts.length === 0 && (
+                <tr><td colSpan={6}>No WiFi ports on this ONU type.</td></tr>
+              )}
+              {wifiPorts.length > 0 && (
+                <tr>
+                  <td colSpan={6}>
+                    <a href="#" className="btn btn-link" style={{ padding: '0px', fontWeight: 'bold', color: '#337ab7' }} onClick={(e) => { e.preventDefault(); const used = wifiPorts.map((w: any) => w.port); const next = [1, 2, 3, 4].find(i => !used.includes(`wifi_1/${i}`)); setWifiConfig({ port: next ? `wifi_1/${next}` : 'wifi_1/1', mode: 'LAN', adminState: 'Enabled', ssid: '' }); setActiveModal('configWifiPort'); }}>
+                      <i className="fa fa-plus"></i> Add new SSID
+                    </a>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </dd>
 
         <dt style={{ paddingTop: '15px', color: '#333' }}>CATV</dt>
         <dd style={{ paddingTop: '15px' }}>
-          <i className="text-muted">Not supported by ONU-Type</i>
+          {onu.onu_type?.catv ? (
+            <span><i className="fa fa-check-circle" style={{ color: '#5cb85c' }}></i> Supported by ONU-Type ({onu.onu_type.name})</span>
+          ) : (
+            <i className="text-muted">Not supported by ONU-Type{onu.onu_type ? ` (${onu.onu_type.name})` : ''}</i>
+          )}
         </dd>
 
         <br />
@@ -1156,7 +1222,7 @@ export default function ViewOnuPage() {
         </div>
       )}
 
-      {/* Dummy Edit Hardware Modal */}
+      {/* Change Hardware Mapping Modal */}
       {activeModal === 'editHardware' && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
           <div className="modal-dialog">
@@ -1165,13 +1231,40 @@ export default function ViewOnuPage() {
                 <button type="button" className="close" onClick={() => setActiveModal(null)}>&times;</button>
                 <h3 className="modal-title">Change Hardware Mapping</h3>
               </div>
-              <div className="modal-body text-center">
-                <i className="fa fa-4x fa-wrench text-warning" style={{ marginBottom: '15px' }}></i>
-                <h4>Coming Soon</h4>
-                <p>Fitur ganti Port dan ganti SN sedang dalam pengembangan backend untuk ZTE C600.</p>
+              <div className="modal-body">
+                <div className="alert alert-warning">
+                  <i className="fa fa-exclamation-triangle"></i> Apply changes to the physical OLT (delete &amp; re-authorize). The ONU will be briefly re-provisioned.
+                </div>
+                <div className="form-group">
+                  <label>ONU SN / MAC</label>
+                  <input type="text" className="form-control" value={hwSn} onChange={(e) => setHwSn(e.target.value)} placeholder="e.g. ZTEGC43E1338" />
+                </div>
+                <div className="form-group">
+                  <label>Move to PON port (optional)</label>
+                  {ponPortsLoading ? (
+                    <div className="text-muted"><i className="fa fa-spinner fa-spin"></i> Loading PON ports...</div>
+                  ) : (
+                    <select className="form-control" value={hwPort} onChange={(e) => setHwPort(e.target.value)}>
+                      <option value="">-- Keep current port --</option>
+                      {ponPorts.map((p: any) => (
+                        <option key={p.id} value={p.name}>{p.name}{p.onu_count ? ` (${p.onu_count} ONUs)` : ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               <div className="modal-footer">
-                <button className="btn btn-default" onClick={() => setActiveModal(null)}>Close</button>
+                <button className="btn btn-link" onClick={() => setActiveModal(null)}>Close</button>
+                <button
+                  className="btn btn-primary"
+                  disabled={loadingAction === 'Change Hardware Mapping' || (!hwSn.trim() && !hwPort)}
+                  onClick={() => {
+                    setActiveModal(null);
+                    executeTerminalAction('Change Hardware Mapping', `/api/onus/${params.id}/update-hardware`, 'POST', { new_sn: hwSn.trim(), new_port: hwPort });
+                  }}
+                >
+                  {loadingAction === 'Change Hardware Mapping' ? 'Applying...' : 'Apply Changes'}
+                </button>
               </div>
             </div>
           </div>
