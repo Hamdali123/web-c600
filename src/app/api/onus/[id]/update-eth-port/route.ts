@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { executeOltCommand, saveConfig, OltCredentials, normalizePonPort, detectOnuType } from '@/lib/oltConnection';
+import { executeOltCommand, saveConfig, OltCredentials, normalizePonPort, detectOnuType, fetchOltRunningConfig } from '@/lib/oltConnection';
 import * as zteC600 from '@/lib/vendors/zte-c600';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +40,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             // the DB onu_type is often wrong (e.g. 'HG8242H' while the ONU is
             // actually registered as type ALL). Ask the physical OLT first.
             const onuType = (await detectOnuType(creds, onuInterface)) || onu.onu_type?.name || 'ALL';
-            const commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp, onuType);
+            let commandList: string;
+            // 'mode tag'/'mode transparent' are only accepted once the port has
+            // no VLAN list, but the list on the OLT may hold VLANs the app set
+            // earlier (e.g. via Trunk) that are NOT in the DB. Ask the OLT for
+            // the real per-port list before switching (verified live on C600).
+            if (['Access', 'LAN', 'Transparent', 'Transparent_old'].includes(mode)) {
+                const rc = await fetchOltRunningConfig(creds);
+                const existingList = zteC600.extractPortVlanList(rc, onuInterface, zteC600.toZtePort(port, onuType));
+                commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp, onuType, existingList);
+            } else {
+                commandList = zteC600.updateEthPortCommand(onuInterface, port, mode, vlans || '', adminState, dhcp, onuType, onu.vlan || '');
+            }
             output = await executeOltCommand(creds, commandList, { failOnError: true });
             await saveConfig(creds);
         } else {

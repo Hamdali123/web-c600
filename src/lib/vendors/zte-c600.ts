@@ -274,6 +274,29 @@ export function getSaveCommand() {
     return `write`;
 }
 
+/**
+ * Parse the VLAN list currently attached to a UNI from the OLT's full
+ * running-config. The C600 running-config blocks are separated by '$' lines;
+ * inside a 'pon-onu-mng <iface>' block each 'vlan port <port> vlan <list>'
+ * line ADDS to the port's VLAN list (ZTE syntax is additive). Collect every
+ * such line for the target port and return the combined unique list.
+ */
+export function extractPortVlanList(runningConfig: string, onuInterface: string, ztePort: string): string {
+    const safeIf = onuInterface.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const safePort = ztePort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const block = runningConfig.match(new RegExp(`pon-onu-mng\\s+${safeIf}\\s*[\\r\\n]([\\s\\S]*?)(?:\\n\\$\\s*|\\npon-onu-mng\\s)`));
+    if (!block) return '';
+    const seen = new Set<string>();
+    const vlans: string[] = [];
+    for (const m of block[1].matchAll(new RegExp(`vlan\\s+port\\s+${safePort}\\s+vlan\\s+([\\d,\\s-]+)`, 'g'))) {
+        for (const v of m[1].split(',')) {
+            const vv = v.trim();
+            if (vv && !seen.has(vv)) { seen.add(vv); vlans.push(vv); }
+        }
+    }
+    return vlans.join(',');
+}
+
 export function getPonPortsCommand() {
     return `show gpon onu state\nshow card\nshow interface brief`;
 }
@@ -576,7 +599,7 @@ export function parseUplinkPorts(output: string) {
 //  - ZTE-F660/HG8245H/... -> eth_0/1..eth_0/4, wifi_0/1..wifi_0/4
 // SmartOLT UI displays ports as eth_1/1..eth_1/4 / wifi_1/1. For non-ALL types the
 // CLI addresses the same ports as eth_0/x, so convert; for type ALL keep as-is.
-function toZtePort(portName: string, onuType?: string): string {
+export function toZtePort(portName: string, onuType?: string): string {
     if (!portName) return portName;
     const rawType = (onuType || '').trim();
     if (rawType && !/^ALL$/i.test(rawType) && !/^ALLBRIGDE$/i.test(rawType)) {
@@ -593,7 +616,7 @@ function uniPrefix(onuType?: string): string {
     return /^ALL$/i.test(rawType) ? 'eth_1/' : 'eth_0/';
 }
 
-export function updateEthPortCommand(onuInterface: string, portName: string, mode: string, vlans: string, adminState?: string, dhcp?: string, onuType?: string) {
+export function updateEthPortCommand(onuInterface: string, portName: string, mode: string, vlans: string, adminState?: string, dhcp?: string, onuType?: string, existingVlans?: string) {
     const commands = [];
     commands.push('configure terminal');
     commands.push(`pon-onu-mng ${onuInterface}`);
@@ -610,11 +633,22 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
 
     // Handle Mode
     if (mode === 'LAN' || mode === 'Transparent' || mode === 'Transparent_old') {
+        // 'mode transparent' is only accepted while the port has no VLAN list;
+        // on a port previously hybrid/trunk it fails with %Error 223982. Drop
+        // the VLANs the app configured (OLT list == DB vlan for app-managed
+        // ONUs) first, then switch — verified live on the C600.
+        if (existingVlans?.trim()) {
+            commands.push(`no vlan port ${ztePort} vlan ${existingVlans.trim()}`);
+        }
         commands.push(`vlan port ${ztePort} mode transparent`);
     } else if (mode === 'Access') {
         // Plain 'mode tag' only works while the port is still default/tag;
         // once the port has been hybrid/trunk the OLT rejects it with
-        // %Error 223982 ("Please check if the port is in the VLAN").
+        // %Error 223982 ("Please check if the port is in the VLAN"). Remove the
+        // configured VLANs first so the switch is accepted from any state.
+        if (existingVlans?.trim()) {
+            commands.push(`no vlan port ${ztePort} vlan ${existingVlans.trim()}`);
+        }
         commands.push(`vlan port ${ztePort} mode tag vlan ${vlans.trim()}`);
     } else if (mode === 'Trunk') {
         commands.push(`vlan port ${ztePort} mode trunk`);
@@ -647,7 +681,7 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
     return commands.join('\n');
 }
 
-export function updateWifiPortCommand(onuInterface: string, portName: string, mode: string, adminState?: string, ssid?: string, action: string = 'save', onuType?: string) {
+export function updateWifiPortCommand(onuInterface: string, portName: string, mode: string, adminState?: string, ssid?: string, action: string = 'save', onuType?: string, existingVlans?: string) {
     const commands = [];
     commands.push('configure terminal');
     commands.push(`pon-onu-mng ${onuInterface}`);
@@ -669,7 +703,9 @@ export function updateWifiPortCommand(onuInterface: string, portName: string, mo
             commands.push(`interface wifi ${ztePort} state unlock`);
         }
 
-        // Handle Mode
+        // Handle Mode (wifi UNIs are always 'mode tag vlan X' — no 'vlan port
+        // ... vlan <list>' entry — so 'mode transparent' works directly; issuing
+        // 'no vlan port wifi_X vlan Y' would fail with %Error 223853)
         if (mode === 'LAN') {
             commands.push(`vlan port ${ztePort} mode transparent`);
         } else if (mode === 'Access') {

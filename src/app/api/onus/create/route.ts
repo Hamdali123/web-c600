@@ -13,11 +13,13 @@ export async function POST(request: Request) {
     const { 
       sn, name, vlan, mode, pppoeUser, pppoePass, 
       onuTypeId, zoneId, odbId, profileId,
-      oltId, portInfo, onuId,
+      oltId, onuId,
       contact, notes, wan_mode
     } = body;
     // The offline authorization page sends snake_case onu_id — accept both.
     const requestedOnuId = onuId || body.onu_id || '';
+    // Some clients send pon_port instead of portInfo — accept both.
+    const portInfo = body.portInfo || body.pon_port || '';
     const presetId = body.presetId;
 
     if (!sn || !name || !vlan || !oltId) {

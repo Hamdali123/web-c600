@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (creds.vendor === 'zte') {
             // OLT is the source of truth for UNI naming (see update-eth-port).
             const onuType = (await detectOnuType(creds, onuInterface)) || onu.onu_type?.name || 'ALL';
-            const commandList = zteC600.updateWifiPortCommand(onuInterface, port, mode, adminState, ssid, action, onuType);
+            const commandList = zteC600.updateWifiPortCommand(onuInterface, port, mode, adminState, ssid, action, onuType, onu.vlan || '');
             output = await executeOltCommand(creds, commandList, { failOnError: true });
             await saveConfig(creds);
         } else {

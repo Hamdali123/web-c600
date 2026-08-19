@@ -19,6 +19,63 @@ export interface OltCommandOptions {
   failOnError?: boolean;
 }
 
+/**
+ * Fetch the OLT's full running-config via a raw telnet socket (no prompt-waiting:
+ * executeOltCommand resolves as soon as the prompt regex matches, which truncates
+ * large multi-KB outputs like 'show running-config' — the C600 streams it slowly).
+ */
+export async function fetchOltRunningConfig(creds: OltCredentials, drainMs = 6000): Promise<string> {
+  const release = await acquireLock(creds.ip);
+  try {
+    if (creds.protocol !== 'telnet') {
+      return executeOltCommand(creds, 'show running-config');
+    }
+    const net = require('net');
+    const socket = net.connect({ host: creds.ip, port: creds.port || 23 });
+    socket.setTimeout(15000);
+    let buffer = '';
+    let resolved = false;
+    const done = () => {
+      if (resolved) return;
+      resolved = true;
+      try { socket.destroy(); } catch {}
+    };
+    socket.on('error', done);
+    socket.on('timeout', done);
+    await new Promise<void>((resolve, reject) => {
+      let stage: 'banner' | 'password' | 'done' = 'banner';
+      const onData = (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const text = chunk.toString();
+        if (stage === 'banner' && text.includes('Username:')) {
+          stage = 'password';
+          socket.write((creds.username || '') + '\n');
+        } else if (stage === 'password' && text.includes('Password:')) {
+          stage = 'done';
+          socket.write((creds.password || '') + '\n');
+        } else if (stage === 'done' && text.includes('ZXAN#')) {
+          // logged in & at exec prompt — send the show command (keep onData
+          // attached so the streaming output keeps appending to `buffer`)
+          socket.write('terminal length 0\n');
+          socket.write('show running-config\n');
+          resolve();
+        }
+      };
+      socket.on('data', onData);
+      socket.on('error', reject);
+      socket.on('timeout', () => reject(new Error('telnet timeout during login')));
+    });
+    // Drain output for drainMs (the C600 streams large outputs slowly), then
+    // close. `onData` has been appending everything to `buffer` throughout.
+    await new Promise<void>((resolve) => setTimeout(resolve, drainMs));
+    try { socket.write('quit\n'); } catch {}
+    try { socket.destroy(); } catch {}
+    return buffer;
+  } finally {
+    release();
+  }
+}
+
 // ZTE C600 rejects config commands with '%Error <code>: <reason>'. Fail silently
 // means the DB gets saved with a config the OLT never actually applied (ONU 'ada
 // tapi nggak konek'). Detect and surface these.
