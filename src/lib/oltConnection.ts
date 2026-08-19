@@ -143,7 +143,18 @@ export async function executeOltCommand(creds: OltCredentials, command: string, 
            }
        }
 
-       await connection.end();
+       // Close the session cleanly: exit config mode then quit so the OLT
+       // releases the vty line immediately. Without this, dropped TCP sessions
+       // pile up as idle 'show users' lines until the OLT timeout, exhausting
+       // the session limit (seen live: ConnectionReset / response not received).
+       try { await connection.send('exit', { waitFor: promptRegex, execTimeout: 3000 }); } catch {}
+       try { await connection.send('quit', { waitFor: /username|password|login|closed|exit/i, execTimeout: 3000 }); } catch {}
+       try { await connection.end(); } catch {}
+
+       if (opts?.failOnError) {
+           const errorLine = fullOutput.split('\n').find((l: string) => /%Error\s*\d*:/.test(l));
+           if (errorLine) throw new Error(errorLine.trim());
+       }
        return fullOutput;
      } catch (error: any) {
        try { await connection.destroy(); } catch (e) {}
@@ -233,7 +244,9 @@ export async function executeOltCommandBatch(creds: OltCredentials, commands: st
              const out = await connection.send(cmd, { waitFor: promptRegex, timeout: 60000 });
              outputs.push(out);
          }
-         await connection.end();
+         try { await connection.send('exit', { waitFor: promptRegex, timeout: 3000 }); } catch {}
+         try { await connection.send('quit', { waitFor: /username|password|login|closed|exit/i, timeout: 3000 }); } catch {}
+         try { await connection.end(); } catch {}
          return outputs;
 
          } catch (error: any) {

@@ -107,14 +107,23 @@ export function authorizeOnuCommand(params: {
 
     let portModeConfig = '';
     const mappedType = mapOnuType(params.onuType, params.sn);
-    const ethUni = `${uniPrefix(mappedType)}1`;
+    const uni = uniPrefix(mappedType); // 'eth_1' or 'eth_0'
+    const ethUni = `${uni}1`;
     if (params.mode === 'bridge') {
-        if (vlans.length > 1) {
-             // If multiple VLANs, set port to hybrid to pass both (Hotspot + Mgmt/Internet)
-             portModeConfig = `  vlan port ${ethUni} mode hybrid def-vlan ${mainVlan}\n  vlan port ${ethUni} vlan ${vlans.join(',')}`;
-        } else {
-             portModeConfig = `  vlan port ${ethUni} mode tag vlan ${mainVlan}`;
-        }
+        // Bridge ALL physical UNIs (eth + wifi) so the subscriber device works
+        // no matter which port it is plugged into. Verified live on the C600:
+        // 'vlan port eth_1/2 ...' and 'vlan port wifi_1/x ...' are accepted.
+        const vlanPorts = (p: number, prefix: string) => {
+            if (vlans.length > 1) {
+                // Multiple VLANs (Hotspot + Mgmt/Internet): hybrid so both pass.
+                return `  vlan port ${prefix}${p} mode hybrid def-vlan ${mainVlan}\n  vlan port ${prefix}${p} vlan ${vlans.join(',')}`;
+            }
+            return `  vlan port ${prefix}${p} mode tag vlan ${mainVlan}`;
+        };
+        const wifiUni = uni.replace('eth', 'wifi');
+        portModeConfig = vlanPorts(1, uni);
+        for (let p = 2; p <= 4; p++) portModeConfig += `\n${vlanPorts(p, uni)}`;
+        for (let p = 1; p <= 4; p++) portModeConfig += `\n${vlanPorts(p, wifiUni)}`;
     } else {
          // Order matches the known-good hand-configured ONUs on this C600:
          // wan-ip pppoe → ping-response → 'wan 1 service internet host 1'.
