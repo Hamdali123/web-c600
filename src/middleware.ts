@@ -7,6 +7,7 @@ export function middleware(request: NextRequest) {
   // Skip auth checks for login and static files
   if (
     pathname.startsWith('/auth/login') ||
+    pathname.startsWith('/auth/forgot_password') ||
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon.ico') ||
