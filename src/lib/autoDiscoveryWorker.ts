@@ -46,6 +46,19 @@ function detectOnuType(sn: string, rawModel: string | null): string {
 // 1. Radar: Mengecek OLT untuk ONU baru
 let isUnconfiguredSyncing = false;
 
+// Traffic history writer guard (every 5 minutes for PON/uplink ports)
+let lastPortTrafficWrite = 0;
+
+function parseTrafficRates(output: string): { tx: number; rx: number } {
+    let rx = 0;
+    let tx = 0;
+    const inMatch = output.match(/Input rate\s*:\s*(\d+)\s+Bps/i) || output.match(/input\s*:\s*(\d+)\s+Bps/i);
+    const outMatch = output.match(/Output rate\s*:\s*(\d+)\s+Bps/i) || output.match(/output\s*:\s*(\d+)\s+Bps/i);
+    if (inMatch) rx = Math.round(parseInt(inMatch[1]) * 8 / 1e6 * 1000) / 1000; // Bps -> Mbps
+    if (outMatch) tx = Math.round(parseInt(outMatch[1]) * 8 / 1e6 * 1000) / 1000;
+    return { tx, rx };
+}
+
 export async function scanUnconfiguredOnus(targetOltId?: number) {
     if (isUnconfiguredSyncing) return;
     isUnconfiguredSyncing = true;
@@ -275,6 +288,7 @@ cron.schedule('*/2 * * * *', async () => {
                             const onuInterface = `gpon_onu-${portNumber}:${onu.onu_id}`;
                             commands.push(`show pon power attenuation ${onuInterface}`);
                             commands.push(`show gpon onu detail-info ${onuInterface}`);
+                            commands.push(`show interface ${onuInterface}`);
                         }
 
                         let outputs: string[];
@@ -289,6 +303,7 @@ cron.schedule('*/2 * * * *', async () => {
                             try {
                                 const attOutput = outputs[outputIndex++];
                                 const detOutput = outputs[outputIndex++];
+                                const trafficOutput = outputs[outputIndex++];
 
                                 const att = parseOltAttenuation(attOutput);
                                 const details = parseOnuDetails(detOutput);
@@ -296,13 +311,18 @@ cron.schedule('*/2 * * * *', async () => {
                                 const signal = att.onu_rx_power === 'null' ? null : parseFloat(att.onu_rx_power);
                                 const signal_tx = att.onu_tx_power === 'null' ? null : parseFloat(att.onu_tx_power);
 
+                                // Live traffic (Mbps) from 'show interface gpon_onu-X'
+                                const { tx, rx } = parseTrafficRates(trafficOutput);
+
                                 const updateData: any = {
                                     signal_tx: (signal_tx === null || isNaN(signal_tx as number)) ? null : signal_tx,
                                     uptime: (details as any).uptime || null,
                                     distance: details.distance || null,
                                     voip_status: (details as any).voip_status || 'Down',
                                     tv_status: (details as any).tv_status || 'Down',
-                                    last_online: new Date()
+                                    last_online: new Date(),
+                                    last_rx_traffic: rx,
+                                    last_tx_traffic: tx
                                 };
 
                                 // Cache OLT Tx Power for PON Ports page
@@ -340,6 +360,18 @@ cron.schedule('*/2 * * * *', async () => {
                                         data: { onu_id: onu.id, signal: signal }
                                     });
                                 }
+
+                                // Record Traffic History (Setiap 5 menit) - only when ONU is actually passing traffic
+                                if (tx > 0 || rx > 0) {
+                                    const recentTraffic = await prisma.trafficHistory.findFirst({
+                                        where: { onu_id: onu.id, createdAt: { gte: fiveMinsAgo } }
+                                    });
+                                    if (!recentTraffic) {
+                                        await prisma.trafficHistory.create({
+                                            data: { onu_id: onu.id, tx: tx, rx: rx }
+                                        });
+                                    }
+                                }
                             } catch (e) {
                                 console.error(`[Sync] Gagal ambil detail ONU ${onu.sn_mac}`);
                             }
@@ -370,6 +402,44 @@ cron.schedule('*/2 * * * *', async () => {
                                     });
                                 }
                             }
+                        }
+                    }
+
+                    // Port traffic history (PON ports + uplink xgei/gei), every 5 minutes
+                    if (Date.now() - lastPortTrafficWrite > 5 * 60 * 1000) {
+                        lastPortTrafficWrite = Date.now();
+                        try {
+                            const portRows = await prisma.oNUConfigured.findMany({
+                                where: { olt_id: olt.id, pon_port: { not: null } },
+                                select: { pon_port: true },
+                                distinct: ['pon_port']
+                            });
+                            const ponNames = Array.from(new Set(
+                                portRows.map(r => (r.pon_port || '').replace('gpon-olt_', 'gpon_olt-').replace('gpon_olt_', 'gpon_olt-'))
+                            )).filter(Boolean);
+
+                            const brief = await executeOltCommand(creds, 'show interface brief').catch(() => '');
+                            const uplinkNames: string[] = [];
+                            for (const line of brief.split('\n')) {
+                                const m = line.trim().match(/^(xgei-\S+|gei-\S+)/i);
+                                if (m && /(^|\s)up(\s|$)/i.test(line) && line.includes('up')) uplinkNames.push(m[1]);
+                            }
+
+                            const portCmds = [...ponNames, ...uplinkNames].map(p => `show interface ${p}`);
+                            if (portCmds.length > 0) {
+                                const portOutputs = await executeOltCommandBatch(creds, portCmds);
+                                const allPorts = [...ponNames, ...uplinkNames];
+                                for (let i = 0; i < allPorts.length; i++) {
+                                    const { tx, rx } = parseTrafficRates(portOutputs[i] || '');
+                                    if (tx > 0 || rx > 0) {
+                                        await prisma.portTrafficHistory.create({
+                                            data: { olt_id: olt.id, port_name: allPorts[i], tx: tx, rx: rx }
+                                        });
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn(`[Sync] Port traffic history failed: ${(e as Error).message}`);
                         }
                     }
                 }

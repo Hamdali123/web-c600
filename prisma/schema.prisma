@@ -128,7 +128,9 @@ model ONUConfigured {
   voip_status    String?         @default("Down") // Up, Down
   tv_status      String?         @default("Down") // Up, Down
   notifications   Notification[]
-  createdAt      DateTime      @default(now())
+  signalHistory    SignalHistory[]
+  trafficHistory   TrafficHistory[]
+  createdAt        DateTime      @default(now())
 }
 
 model ODB {
@@ -233,6 +235,33 @@ model SignalHistory {
   onu_id    Int
   signal    Float
   createdAt DateTime @default(now())
+
+  onu ONUConfigured? @relation(fields: [onu_id], references: [id])
+
+  @@index([onu_id, createdAt])
+}
+
+model TrafficHistory {
+  id        Int      @id @default(autoincrement())
+  onu_id    Int
+  tx        Float
+  rx        Float
+  createdAt DateTime @default(now())
+
+  onu ONUConfigured? @relation(fields: [onu_id], references: [id])
+
+  @@index([onu_id, createdAt])
+}
+
+model PortTrafficHistory {
+  id        Int      @id @default(autoincrement())
+  olt_id    Int
+  port_name String
+  tx        Float
+  rx        Float
+  createdAt DateTime @default(now())
+
+  @@index([olt_id, port_name, createdAt])
 }
 
 model StatusHistory {

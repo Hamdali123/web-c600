@@ -68,7 +68,7 @@ export async function GET(request: Request) {
       whereClause.pon_port = { contains: `/${board}/` };
     }
     if (port && port !== 'Any') {
-      whereClause.pon_port = { endsWith: `/${port}` };
+      whereClause.pon_port = { in: [`gpon-olt_${port}`, `gpon_olt-${port}`] };
     }
     if (ponType && ponType !== 'Any') {
       whereClause.olt = { pon_types: { contains: ponType } };

@@ -44,6 +44,19 @@ export default function GraphsPage() {
   }, [selectedOlt, category, board, port, zone, splitter]);
 
   const renderGridChart = (chart: any) => {
+    if (!chart.data || chart.data.length === 0) {
+      return (
+        <div key={chart.id} className="col-md-6" style={{ marginBottom: '30px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+            <span style={{ color: '#337ab7' }}>{chart.title}</span><br/>
+            <small className="text-muted">{chart.subtitle}</small>
+          </div>
+          <div style={{ backgroundColor: '#f9f9f9', border: '1px dashed #ccc', padding: '10px', height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="text-muted"><i className="fa fa-hourglass-half" style={{ marginRight: '5px' }}></i>No data yet — collecting...</span>
+          </div>
+        </div>
+      );
+    }
     if (chart.type === 'line' || chart.type === 'Signal') {
       const isSignal = chart.type === 'Signal';
       const dataKey = isSignal ? 'signal' : chart.dataKey;
@@ -269,6 +282,12 @@ export default function GraphsPage() {
           </select>
         </div>
       </div>
+
+      {summary.error && (
+        <div className="alert alert-warning" style={{ fontSize: '13px' }}>
+          <i className="fa fa-exclamation-triangle" style={{ marginRight: '5px' }}></i>{summary.error}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center" style={{ padding: '80px 0' }}>

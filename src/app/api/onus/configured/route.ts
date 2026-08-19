@@ -148,7 +148,7 @@ export async function GET(request: Request) {
     }
 
     if (port && port !== 'all') {
-       whereClause.pon_port = { endsWith: `/${port}` }; // Matches the last number (e.g. gpon-olt_1/2/1 -> port 1)
+       whereClause.pon_port = { in: [`gpon-olt_${port}`, `gpon_olt-${port}`] }; // Matches the last numbers (e.g. gpon-olt_1/2/1 -> port 1)
     }
 
     if (profileId && profileId !== 'all') {
