@@ -14,6 +14,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         
         if (!mode) return NextResponse.json({ error: 'Mode is required' }, { status: 400 });
 
+        // The C600 firmware only supports DHCP and PPPoE for ONU WAN IP: 'wan-ip
+        // ipv4 mode static' requires an ip-profile that cannot be created from the
+        // OLT CLI (every profile name is rejected with "%Error 223981: Profile
+        // does not exist." — verified live). Fail with a clear message instead of
+        // an opaque %Error.
+        if (dhcp === 'Static IP') {
+            return NextResponse.json({
+                error: 'Static IP WAN belum didukung oleh firmware C600 ini (butuh ip-profile yang tidak bisa dibuat dari OLT). Gunakan DHCP atau PPPoE.'
+            }, { status: 400 });
+        }
+
         const onu = await prisma.oNUConfigured.findUnique({
             where: { id: onuId },
             include: { olt: true, onu_type: true }

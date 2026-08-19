@@ -132,8 +132,11 @@ export function authorizeOnuCommand(params: {
         for (let p = 2; p <= 4; p++) portModeConfig += `\n${vlanPorts(p, uni)}`;
         for (let p = 1; p <= 4; p++) portModeConfig += `\n${vlanPorts(p, wifiUni)}`;
     } else {
-         // Order matches the known-good hand-configured ONUs on this C600:
-         // wan-ip pppoe → ping-response → 'wan 1 service internet host 1'.
+         // 'wan-ip ipv4 mode pppoe'/'mode static' fail with "%Error 224011: This
+         // wan-ip does not exist." when no wan-ip instance exists yet (fresh
+         // bridge ONU). 'mode dhcp' creates the instance from any state (all
+         // transitions verified live), so always apply it first, then override.
+         portModeConfig += `  wan-ip ipv4 mode dhcp vlan-profile SMARTOLT_VLAN_${mainVlan} host 1\n`;
          if (params.pppoeUser || params.pppoePass) {
              portModeConfig += `  wan-ip ipv4 mode pppoe username ${params.pppoeUser || ''} password ${params.pppoePass || ''} vlan-profile SMARTOLT_VLAN_${mainVlan} host 1\n`;
          } else {
@@ -846,8 +849,12 @@ export function updateServiceCommand(params: {
         // replaces the VLAN list, so it is safe to re-apply on updates.
         portModeConfig += `  vlan port ${ethUni} mode hybrid\n  vlan port ${ethUni} vlan ${vlansList.join(',')}`;
     } else {
-         portModeConfig += `  wan-ip ipv4 ping-response enable traceroute-response enable\n`;
-         
+         // 'wan-ip ipv4 mode pppoe'/'mode static' fail with "%Error 224011: This
+         // wan-ip does not exist." when no wan-ip instance exists yet (fresh
+         // bridge ONU). 'mode dhcp' creates the instance from any state (all
+         // transitions verified live), so always apply it first, then override.
+         portModeConfig += `  wan-ip ipv4 mode dhcp vlan-profile SMARTOLT_VLAN_${mainVlan} host 1\n`;
+
          if (params.dhcp === 'PPPoE') {
              portModeConfig += `  wan-ip ipv4 mode pppoe username ${params.pppoeUser || ''} password ${params.pppoePass || ''} vlan-profile SMARTOLT_VLAN_${mainVlan} host 1\n`;
          } else if (params.dhcp === 'Static IP' && params.wanIpSource === 'Manual IP') {
@@ -857,6 +864,7 @@ export function updateServiceCommand(params: {
              portModeConfig += `  wan-ip ipv4 mode dhcp vlan-profile SMARTOLT_VLAN_${mainVlan} host 1\n`;
          }
 
+         portModeConfig += `  wan-ip ipv4 ping-response enable traceroute-response enable\n`;
          portModeConfig += `  wan 1 service internet host 1\n`;
 
          if (vlansList.length > 1) {
