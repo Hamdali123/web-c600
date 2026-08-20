@@ -422,17 +422,18 @@ export function parseCards(output: string) {
         
         const parts = line.trim().split(/\s+/);
         if (parts.length >= 4) {
+            // C600 'show card' columns: Shelf Slot CfgType CardName Port HardVer Status
             cards.push({
                 shelf: parts[0],
                 slot: parts[1],
                 type: parts[2],
-                status: parts[3],
-                role: parts[4] || '',
+                status: parts[6] || parts[parts.length - 1] || '',
+                role: parts[3] || '',
                 hardVer: parts[5] || '',
-                softVer: parts[6] || '',
-                cpu: parts[7] || 'N/A',
-                mem: parts[8] || 'N/A',
-                temp: parts[9] || 'N/A'
+                softVer: '',
+                cpu: 'N/A',
+                mem: 'N/A',
+                temp: 'N/A'
             });
         }
     }
@@ -452,9 +453,10 @@ export function parsePonPorts(stateOutput: string, cardsOutput: string = '', bri
             const fullPort = parts[0]; 
             let portName = fullPort.split(':')[0].replace('onu', 'olt');
             
-            if (/^\d+\/\d+\/\d+$/.test(portName)) {
-                portName = `gpon_olt-${portName}`;
-            }
+            // Skip non-port lines (e.g. the 'ONU Number: 209/232' summary line)
+            if (!/^\d+\/\d+\/\d+$/.test(portName)) continue;
+            
+            portName = `gpon_olt-${portName}`;
 
             if (!onuCounts[portName]) onuCounts[portName] = { total: 0, online: 0 };
             onuCounts[portName].total++;
@@ -494,7 +496,11 @@ export function parsePonPorts(stateOutput: string, cardsOutput: string = '', bri
                 const prefix = `gpon_olt-${card.shelf}/${card.slot}/`;
                 for (let i = 1; i <= numPorts; i++) {
                     const pName = `${prefix}${i}`;
-                    const states = briefStates[pName] || { adminState: 'enable', operState: 'down' };
+                    // Note: on the C600 'show interface brief' only lists uplink
+                    // (xgei/gei) ports, never gpon_olt ports, so briefStates is
+                    // empty for PON ports. Default to 'up' for ports on an active
+                    // card and derive oper state from the ONU state table instead.
+                    const states = briefStates[pName] || { adminState: 'up', operState: 'up' };
                     const onuTotal = onuCounts[pName]?.total || 0;
                     const onuOnline = onuCounts[pName]?.online || 0;
                     
@@ -503,11 +509,12 @@ export function parsePonPorts(stateOutput: string, cardsOutput: string = '', bri
                     
                     if (aState === 'enable' || aState === 'enabled') aState = 'up';
                     if (aState === 'disable' || aState === 'disabled') aState = 'down';
+                    if (oState === 'enable' || oState === 'enabled') oState = 'up';
+                    if (oState === 'disable' || oState === 'disabled') oState = 'down';
                     
-                    // If operState is unknown, infer from ONU count (as requested by user)
-                    if (!briefStates[pName]) {
-                        oState = onuTotal > 0 ? 'up' : 'down';
-                    }
+                    // A port with any registered (working) ONU is up
+                    if (onuTotal > 0) oState = 'up';
+                    if (aState === 'down') oState = 'down';
                     
                     portsMap.set(pName, {
                         name: pName,
@@ -604,6 +611,9 @@ export function parseUplinkPorts(output: string) {
 // CLI addresses the same ports as eth_0/x, so convert; for type ALL keep as-is.
 export function toZtePort(portName: string, onuType?: string): string {
     if (!portName) return portName;
+    // The UI sends bare names like 'eth1'/'wifi2' — normalize to ZTE UNI form
+    const bare = portName.match(/^(eth|wifi|uni|tve|pon)(\d+)$/i);
+    if (bare) portName = `${bare[1].toLowerCase()}_1/${bare[2]}`;
     const rawType = (onuType || '').trim();
     if (rawType && !/^ALL$/i.test(rawType) && !/^ALLBRIGDE$/i.test(rawType)) {
         if (/^(eth|wifi|uni|tve|pon)_1\//i.test(portName)) {
@@ -626,12 +636,13 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
     
     const ztePort = toZtePort(portName, onuType);
 
-    // Handle Admin State (ZTE: interface eth -> state lock|unlock, one-line form;
-    // 'interface eth <port>' alone is incomplete on some firmware builds)
+    // Admin state via 'interface eth <port> state lock|unlock' is NOT
+    // supported by this C600 firmware (every form fails with %Error 141000
+    // 'Common error happened' - verified live on multiple ONUs). Ports are
+    // enabled by default, so 'Enabled' is a no-op; 'Shutdown' must fail
+    // loudly instead of silently doing nothing.
     if (adminState === 'Shutdown') {
-        commands.push(`interface eth ${ztePort} state lock`);
-    } else if (adminState === 'Enabled') {
-        commands.push(`interface eth ${ztePort} state unlock`);
+        throw new Error('Admin state port (shutdown) belum didukung firmware C600 ini (perintah ditolak %Error 141000). Port tetap aktif.');
     }
 
     // Handle Mode
@@ -649,10 +660,12 @@ export function updateEthPortCommand(onuInterface: string, portName: string, mod
         // once the port has been hybrid/trunk the OLT rejects it with
         // %Error 223982 ("Please check if the port is in the VLAN"). Remove the
         // configured VLANs first so the switch is accepted from any state.
+        // Note: 'mode tag vlan <id>' is rejected on this C600 as an incomplete
+        // command (%Error 140305, verified live) — use bare 'mode tag'.
         if (existingVlans?.trim()) {
             commands.push(`no vlan port ${ztePort} vlan ${existingVlans.trim()}`);
         }
-        commands.push(`vlan port ${ztePort} mode tag vlan ${vlans.trim()}`);
+        commands.push(`vlan port ${ztePort} mode tag`);
     } else if (mode === 'Trunk') {
         commands.push(`vlan port ${ztePort} mode trunk`);
         if (vlans.trim()) commands.push(`vlan port ${ztePort} vlan ${vlans.trim()}`);
@@ -692,18 +705,18 @@ export function updateWifiPortCommand(onuInterface: string, portName: string, mo
     const ztePort = toZtePort(portName, onuType);
 
     if (action === 'clear') {
-        commands.push(`interface wifi ${ztePort} state lock`);
+        // 'interface wifi <port> state lock' is not supported on this C600
+        // firmware (%Error 141000 - verified live), same as for eth ports.
         commands.push(`vlan port ${ztePort} mode transparent`);
         if (ssid && ssid.trim() !== '') {
             commands.push(`no ssid ctrl ${ztePort} name ${ssid.trim()}`);
         }
     } else {
-        // Handle Admin State (ZTE: interface wifi -> state lock|unlock, one-line
-        // form — 'interface wifi <port>' alone is "Incomplete command" on C600)
+        // Admin state via 'interface wifi <port> state lock|unlock' is NOT
+        // supported by this C600 firmware (%Error 141000, verified live).
+        // WiFi UNIs are enabled by default, so 'Enabled' is a no-op.
         if (adminState === 'Shutdown') {
-            commands.push(`interface wifi ${ztePort} state lock`);
-        } else if (adminState === 'Enabled') {
-            commands.push(`interface wifi ${ztePort} state unlock`);
+            throw new Error('Admin state port (shutdown) belum didukung firmware C600 ini (perintah ditolak %Error 141000). Port tetap aktif.');
         }
 
         // Handle Mode (wifi UNIs are always 'mode tag vlan X' — no 'vlan port

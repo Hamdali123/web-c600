@@ -641,9 +641,7 @@ export default function OltDetailsPage() {
               <button className="btn btn-default btn-xs" onClick={fetchAcls} disabled={loadingAcls} style={{ marginRight: '10px' }}>
                 <i className={loadingAcls ? "fa fa-refresh fa-spin" : "fa fa-refresh"}></i> Refresh
               </button>
-              <button className="btn btn-primary btn-xs">
-                <i className="fa fa-plus"></i> Add ACL rule
-              </button>
+              <span className="text-muted small"><i className="fa fa-info-circle"></i> Tidak didukung firmware C600 ini (tidak ada perintah ACL)</span>
             </div>
           </div>
           <div className="panel-body" style={{ padding: 0 }}>
@@ -761,9 +759,7 @@ export default function OltDetailsPage() {
                 <button className="btn btn-default btn-xs" onClick={fetchVoipProfiles} disabled={loadingVoipProfiles} style={{ marginRight: '10px' }}>
                   <i className={loadingVoipProfiles ? "fa fa-refresh fa-spin" : "fa fa-refresh"}></i> Refresh
                 </button>
-                <button className="btn btn-primary btn-xs">
-                  <i className="fa fa-plus"></i> Add VoIP profile
-                </button>
+                <span className="text-muted small"><i className="fa fa-info-circle"></i> Tidak didukung firmware C600 ini (tidak ada perintah VoIP)</span>
               </div>
             </div>
             <div className="panel-body">

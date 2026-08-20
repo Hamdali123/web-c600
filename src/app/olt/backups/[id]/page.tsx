@@ -12,13 +12,20 @@ export default function OltBackupsPage() {
   const [olt, setOlt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [autoBackup, setAutoBackup] = useState(true);
-  
-  // High fidelity mock data for backups
-  const [backups, setBackups] = useState([
-    { id: 1, date: '2026-05-28 03:12:45', lines: '12,504', size: '245 KB', type: 'Automatic Daily Backup' },
-    { id: 2, date: '2026-05-27 03:10:11', lines: '12,492', size: '243 KB', type: 'Automatic Daily Backup' },
-    { id: 3, date: '2026-05-26 14:32:00', lines: '12,490', size: '243 KB', type: 'Manual Backup' },
-  ]);
+  const [backups, setBackups] = useState<any[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const fetchBackups = async () => {
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/backup`);
+      const data = await res.json();
+      if (data.success) setBackups(data.backups);
+    } catch (e) {
+      console.error("Error fetching backups:", e);
+    }
+  };
 
   useEffect(() => {
     const fetchOlt = async () => {
@@ -35,6 +42,7 @@ export default function OltBackupsPage() {
       }
     };
     fetchOlt();
+    fetchBackups();
 
     // Fetch toggle status from localStorage if present
     const stored = localStorage.getItem(`olt_autobackup_${id}`);
@@ -47,24 +55,73 @@ export default function OltBackupsPage() {
     const newVal = !autoBackup;
     setAutoBackup(newVal);
     localStorage.setItem(`olt_autobackup_${id}`, String(newVal));
-  };
-
-  const handleDownload = (backup: any) => {
-    alert(`Downloading backup configuration: ${backup.date}`);
-  };
-
-  const handleRestore = (backup: any) => {
-    if (confirm(`Are you sure you want to restore OLT settings to backup from ${backup.date}? This will overwrite current running configuration.`)) {
-      alert("Restoring configuration... Please wait.");
-      setTimeout(() => {
-        alert("Configuration restored successfully!");
-      }, 2000);
+    if (newVal) {
+      fetch(`/api/settings/olt/${id}/backup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto: true })
+      }).then(() => fetchBackups()).catch(console.error);
     }
   };
 
-  const handleDelete = (backupId: number) => {
-    if (confirm("Are you sure you want to delete this backup file?")) {
-      setBackups(prev => prev.filter(b => b.id !== backupId));
+  const handleCreateBackup = async () => {
+    setCreating(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/backup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto: false })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage(`Backup berhasil: ${data.file} (${data.size}, ${data.lines} baris)`);
+        fetchBackups();
+      } else {
+        setMessage(`Gagal: ${data.error}`);
+      }
+    } catch (e: any) {
+      setMessage(`Gagal: ${e.message}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDownload = (backup: any) => {
+    window.open(`/api/settings/olt/${id}/backup?download=${encodeURIComponent(backup.id)}`, '_blank');
+  };
+
+  const handleRestore = async (backup: any) => {
+    if (!confirm(`Yakin restore konfigurasi OLT dari backup ${backup.date}? Ini akan menimpa running configuration saat ini.`)) return;
+    setRestoring(true);
+    setMessage('');
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/backup`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: backup.id })
+      });
+      const data = await res.json();
+      setMessage(data.success ? data.message : `Gagal: ${data.error}`);
+    } catch (e: any) {
+      setMessage(`Gagal: ${e.message}`);
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const handleDelete = async (backupId: string) => {
+    if (!confirm("Are you sure you want to delete this backup file?")) return;
+    try {
+      const res = await fetch(`/api/settings/olt/${id}/backup`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: backupId })
+      });
+      const data = await res.json();
+      if (data.success) fetchBackups();
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -100,6 +157,29 @@ export default function OltBackupsPage() {
                   style={{ minWidth: '100px', fontWeight: 'bold' }}
                 >
                   {autoBackup ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {message && (
+            <div className="alert alert-info" style={{ marginBottom: '15px' }}>
+              <i className="fa fa-info-circle"></i> {message}
+            </div>
+          )}
+
+          {/* Manual Backup Button */}
+          <div className="panel panel-default border-0 shadow-sm" style={{ marginBottom: '20px' }}>
+            <div className="panel-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <strong style={{ fontSize: '16px', color: '#333' }}>Manual Backup</strong>
+                <p className="text-muted small" style={{ margin: '5px 0 0 0' }}>
+                  Ambil running-config langsung dari perangkat OLT dan simpan sebagai file backup.
+                </p>
+              </div>
+              <div>
+                <button onClick={handleCreateBackup} disabled={creating} className="btn btn-primary" style={{ minWidth: '140px', fontWeight: 'bold' }}>
+                  <i className={`fa ${creating ? 'fa-spinner fa-spin' : 'fa-download'}`}></i> {creating ? 'Mengambil...' : 'Buat Backup'}
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-const { executeOltCommand } = require('./src/lib/oltConnection');
+const { executeOltCommand, fetchOltRunningConfig } = require('./src/lib/oltConnection');
 
 const prisma = new PrismaClient();
 
@@ -105,7 +105,36 @@ async function main() {
 
     let importedCount = 0;
 
-    // 2. Fetch baseinfo (containing SN and Type) for each PON port
+    // 2. Fetch the running config once to read the real VLAN and WAN mode of
+    // each ONU (e.g. 'service 1 gemport 1 vlan 125' for bridge ONUs or
+    // 'wan-ip ipv4 mode pppoe ... vlan-profile SMARTO_LT_VLAN_125' for route
+    // ONUs) instead of writing hardcoded defaults.
+    const onuVlans: Record<string, string> = {};
+    const onuModes: Record<string, string> = {};
+    try {
+        const runningConfig = await fetchOltRunningConfig(creds, 8000);
+        let curKey = '';
+        for (const line of runningConfig.split('\n')) {
+            const mg = line.trim().match(/^pon-onu-mng gpon_onu-(\d+\/\d+\/\d+):(\d+)/);
+            if (mg) { curKey = `${mg[1]}:${mg[2]}`; continue; }
+            if (line.trim() === '$' || line.trim() === 'exit') { curKey = ''; continue; }
+            if (!curKey) continue;
+            const sv = line.trim().match(/^service \S+ gemport 1 vlan (\d+)/);
+            if (sv) onuVlans[curKey] = sv[1];
+            const wm = line.trim().match(/^wan-ip ipv4 mode (pppoe|dhcp|static)/);
+            if (wm) onuModes[curKey] = 'route';
+            if (!onuVlans[curKey]) {
+                const vp = line.trim().match(/vlan-profile\s+\S*[_\s-]?VLAN[_\s-]?(\d+)/i) ||
+                           line.trim().match(/vlan-profile\s+\S*_(\d+)\b/);
+                if (vp) onuVlans[curKey] = vp[1];
+            }
+        }
+        console.log(`[Hardware Sync] Read ${Object.keys(onuVlans).length} per-ONU VLANs from running config.`);
+    } catch (e: any) {
+        console.error('[Hardware Sync] Failed to read running config VLANs:', e.message);
+    }
+
+    // 3. Fetch baseinfo (containing SN and Type) for each PON port
     for (const port of Array.from(uniquePorts)) {
       console.log(`[Hardware Sync] Querying baseinfo for port gpon_olt-${port}...`);
       const baseinfoOutput = await executeOltCommand(creds, `show gpon onu baseinfo gpon_olt-${port}`);
@@ -125,6 +154,8 @@ async function main() {
           const status = stateObj ? stateObj.status : 'Offline';
 
           const dbPonPort = `gpon-olt_${matchPort}`;
+          const realVlan = onuVlans[`${matchPort}:${onuId}`] || '1';
+          const realMode = onuModes[`${matchPort}:${onuId}`] || 'bridge';
 
           // Check if this ONU is already in the database by SN MAC first, since it's unique
           let existing = await prisma.oNUConfigured.findUnique({
@@ -166,8 +197,8 @@ async function main() {
                 olt_id: olt.id,
                 pon_port: dbPonPort,
                 onu_id: onuId,
-                vlan: '1', // Default VLAN
-                mode: 'route', // Default Mode
+                vlan: realVlan,
+                mode: realMode,
                 status: status
               }
             });

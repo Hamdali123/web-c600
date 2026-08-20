@@ -34,9 +34,9 @@ export default function OltVoipProfilesPage({ params }: { params: Promise<{ id: 
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between' }}>
           <div>
-            <button className="btn btn-success" style={{ marginRight: '10px' }}>
-              <i className="fa fa-plus"></i> Add VoIP profile
-            </button>
+            <span className="text-muted small" style={{ marginRight: '10px' }}>
+              <i className="fa fa-info-circle"></i> Tidak didukung firmware C600 ini (tidak ada perintah VoIP)
+            </span>
             <button className="btn btn-primary" onClick={fetchProfiles} disabled={loading}>
               <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i> Refresh
             </button>

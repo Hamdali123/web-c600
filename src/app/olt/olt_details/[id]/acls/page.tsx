@@ -34,9 +34,9 @@ export default function OltAclsPage({ params }: { params: Promise<{ id: string }
       <div className="col-md-12">
         <div className="margin-bottom-20" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between' }}>
           <div>
-            <button className="btn btn-success" style={{ marginRight: '10px' }}>
-              <i className="fa fa-plus"></i> Add ACL Rule
-            </button>
+            <span className="text-muted small" style={{ marginRight: '10px' }}>
+              <i className="fa fa-info-circle"></i> Tidak didukung firmware C600 ini (tidak ada perintah ACL)
+            </span>
             <button className="btn btn-primary" onClick={fetchAcls} disabled={loading}>
               <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i> Refresh
             </button>

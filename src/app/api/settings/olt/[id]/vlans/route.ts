@@ -23,6 +23,28 @@ export async function GET(
       where: { olt_id: oltId }
     });
 
+    // Prefer LIVE VLANs from the physical OLT ('show vlan summary'), falling
+    // back to the DB copy if the OLT is unreachable.
+    let liveVlans: { id: number, desc: string }[] = [];
+    try {
+        const creds = {
+            ip: olt.ip_address,
+            port: olt.telnet_port || 23,
+            username: olt.telnet_user || '',
+            password: olt.telnet_pass || '',
+            protocol: (olt.protocol as any) || 'telnet',
+            vendor: (olt.vendor as any) || 'zte'
+        };
+        liveVlans = await getVlans(creds);
+    } catch (e) {
+        console.error("Failed to fetch live VLANs, falling back to DB", e);
+    }
+    const liveMap = new Map(liveVlans.map(v => [String(v.id), v.desc]));
+    const dbMap = new Map(vlans.map(v => [String(v.vlan_id), v.description]));
+    const mergedVlanIds = liveVlans.length > 0
+        ? Array.from(liveMap.keys())
+        : vlans.map(v => String(v.vlan_id));
+
     // Fetch all ONUs for this OLT to accurately count VLANs in memory
     // because Prisma's `contains` matches substrings (e.g., "1" matches "125")
     const allOnus = await prisma.oNUConfigured.findMany({
@@ -32,8 +54,7 @@ export async function GET(
 
     // Format them to match the UI expectations
     const formattedVlans = [];
-    for (const v of vlans) {
-      const vlanStr = String(v.vlan_id);
+    for (const vlanStr of mergedVlanIds) {
       
       // Count ONUs that have this exact VLAN ID
       let onusCount = 0;
@@ -47,8 +68,8 @@ export async function GET(
       }
 
       formattedVlans.push({
-        id: v.vlan_id,
-        desc: v.description,
+        id: parseInt(vlanStr),
+        desc: liveMap.get(vlanStr) || dbMap.get(vlanStr) || `VLAN${vlanStr.padStart(4, '0')}`,
         onu_count: onusCount
       });
     }
