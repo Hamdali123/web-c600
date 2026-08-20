@@ -10,7 +10,8 @@ async function main() {
     return;
   }
 
-  const olt = olts[0];
+  const targetId = parseInt(process.argv[2] || '');
+  const olt = (targetId ? olts.find(o => o.id === targetId) : undefined) || olts[0];
   const creds = {
     ip: olt.ip_address,
     port: olt.telnet_port || 23,

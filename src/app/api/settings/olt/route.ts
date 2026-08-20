@@ -94,10 +94,16 @@ export async function DELETE(request: Request) {
     const deletedOlt = await prisma.oLTDevice.delete({ where: { id: oltId } });
 
     // Log activity
+    let reason = '';
+    try {
+      const body = await request.json();
+      reason = body.deleteReason || '';
+    } catch (e) { /* no body sent */ }
+
     await prisma.activityLog.create({
       data: {
         action: 'Delete OLT',
-        details: `Deleted OLT: ${deletedOlt.name}`,
+        details: `Deleted OLT: ${deletedOlt.name}${reason ? ` (Reason: ${reason})` : ''}`,
         status: 'Success'
       }
     });

@@ -39,7 +39,9 @@ export default function DeleteOltPage() {
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/settings/olt?id=${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteReason })
       });
       const data = await res.json();
       

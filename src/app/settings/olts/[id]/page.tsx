@@ -449,7 +449,7 @@ export default function OltDetailsPage() {
                     {ponPorts.length > 0 ? ponPorts.map((port, i) => (
                       <tr key={i}>
                         <td style={{ fontWeight: 'bold' }}>{port.name}</td>
-                        <td><span className={`label ${port.adminState === 'enable' ? 'label-success' : 'label-default'}`}>{port.adminState}</span></td>
+                        <td><span className={`label ${port.adminState === 'up' ? 'label-success' : port.adminState === 'down' ? 'label-danger' : 'label-default'}`}>{port.adminState === 'up' ? 'Enable' : port.adminState === 'down' ? 'Disable' : port.adminState}</span></td>
                         <td><span className={`label ${port.operState === 'up' ? 'label-success' : 'label-danger'}`}>{port.operState}</span></td>
                         <td>
                            <div className="progress" style={{ height: '18px', marginBottom: 0, position: 'relative', width: '120px' }}>
@@ -497,7 +497,7 @@ export default function OltDetailsPage() {
                     {uplinkPorts.length > 0 ? uplinkPorts.map((port, i) => (
                       <tr key={i}>
                         <td style={{ fontWeight: 'bold' }}>{port.name}</td>
-                        <td><span className={`label ${port.adminState === 'enable' ? 'label-success' : 'label-default'}`}>{port.adminState}</span></td>
+                        <td><span className={`label ${port.adminState === 'up' || port.adminState === 'enable' ? 'label-success' : 'label-danger'}`}>{port.adminState === 'up' || port.adminState === 'enable' ? 'Enable' : port.adminState === 'down' || port.adminState === 'disable' ? 'Disable' : port.adminState}</span></td>
                         <td><span className={`label ${port.operState === 'up' ? 'label-success' : 'label-danger'}`}>{port.operState}</span></td>
                         <td className="text-muted italic">{port.description}</td>
                       </tr>

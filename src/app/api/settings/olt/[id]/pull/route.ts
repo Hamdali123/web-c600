@@ -12,8 +12,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // For local clone, we can just execute the script.
     
     // We don't await it fully so we don't block the request for 5 minutes,
-    // but we can start it.
-    exec('npx tsx sync_from_olt_hardware.ts', (error, stdout, stderr) => {
+    // but we can start it. Pass the OLT id so only that OLT is synced.
+    exec(`npx tsx sync_from_olt_hardware.ts ${resolvedParams.id}`, (error, stdout, stderr) => {
         if (error) {
             console.error(`Error pulling ONUs: ${error.message}`);
             return;

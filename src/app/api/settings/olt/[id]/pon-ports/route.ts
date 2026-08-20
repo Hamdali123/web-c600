@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-import { getOltPonPorts, OltCredentials } from '@/lib/oltConnection';
+import { getOltPonPorts, OltCredentials, fetchOltRunningConfig } from '@/lib/oltConnection';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -104,6 +104,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         if (p.name) uniquePorts.add(p.name.replace('gpon-olt_', 'gpon_olt-'));
     }
 
+    // Fetch port descriptions from the OLT running config (set via
+    // 'description <text>' under each gpon_olt interface)
+    const portDescriptions: Record<string, string> = {};
+    if (livePonPorts.length > 0) {
+        try {
+            const rc = await fetchOltRunningConfig(creds, 6000);
+            let curPort = '';
+            for (const line of rc.split('\n')) {
+                const iface = line.trim().match(/^interface (gpon_olt-\d+\/\d+\/\d+)$/);
+                if (iface) {
+                    curPort = iface[1];
+                    continue;
+                }
+                const desc = line.trim().match(/^description (.+)$/);
+                if (desc && curPort) portDescriptions[curPort] = desc[1].trim();
+            }
+        } catch (e) {
+            console.error("Failed to fetch PON port descriptions", e);
+        }
+    }
+
     // Fallback: If no ports found yet, populate standard ZTE C600 card PON ports (Board 1 & 2, Ports 1-16)
     if (uniquePorts.size === 0) {
         for (let slot of [1, 2]) {
@@ -140,7 +161,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
          name: displayName,
          value: match ? match[0] : portName,
          status: isUp ? 'Up' : 'Down',
-         operState: isUp ? 'Up' : 'Down',
+         operState: liveData ? liveData.operState : (isUp ? 'up' : 'down'),
+         adminState: liveData ? liveData.adminState : (avgData.total > 0 ? 'up' : 'down'),
+         description: (liveData && liveData.description) || portDescriptions[portName] || '',
          onus_total: totalOnus,
          onus_online: onlineOnus,
          averageSignal: avgData.count > 0 ? (avgData.sum / avgData.count).toFixed(2) : null,
