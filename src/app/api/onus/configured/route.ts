@@ -23,6 +23,10 @@ export async function GET(request: Request) {
     const port = searchParams.get('port');
     const profileId = searchParams.get('profile');
     const ponType = searchParams.get('pon_type');
+    const mgmtIp = searchParams.get('mgmt_ip');
+    const voip = searchParams.get('voip');
+    const catv = searchParams.get('catv');
+    const wanMode = searchParams.get('wan_mode');
     
     // Pagination
     const page = parseInt(searchParams.get('page') || '1');
@@ -158,6 +162,22 @@ export async function GET(request: Request) {
 
     if (ponType && ponType !== 'all') {
        whereClause.olt = { pon_types: { contains: ponType } };
+    }
+
+    if (mgmtIp) {
+       whereClause.mgmt_ip = { contains: mgmtIp };
+    }
+
+    if (voip && voip !== 'all') {
+       whereClause.voip_status = voip;
+    }
+
+    if (catv && catv !== 'all') {
+       whereClause.tv_status = catv;
+    }
+
+    if (wanMode && wanMode !== 'all') {
+       whereClause.wan_mode = wanMode;
     }
 
     const totalCount = await prisma.oNUConfigured.count({ where: whereClause });

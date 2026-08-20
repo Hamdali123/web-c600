@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import Link from 'next/link';
+import OltActions from './OltActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +8,18 @@ export default async function OltListingPage() {
     orderBy: { id: 'desc' }
   });
 
+  const rows = olts.map(o => ({
+    id: o.id,
+    name: o.name,
+    ip_address: o.ip_address,
+    telnet_port: o.telnet_port,
+    snmp_port: o.snmp_port,
+    manufacturer: o.manufacturer,
+    hardware_version: o.hardware_version,
+    disabled: o.disabled,
+    last_polled: o.last_polled ? o.last_polled.toISOString() : null
+  }));
+
   return (
     <div className="container-fluid container-main">
       <div className="row">
@@ -15,10 +27,10 @@ export default async function OltListingPage() {
           <h4 className="page-title">OLTs</h4>
           
           <div className="margin-bottom-20">
-            <Link className="btn btn-success margin-bottom" href="/settings/olts/add">
+            <a className="btn btn-success margin-bottom" href="/settings/olts/add">
               <span className="fa fa-plus"></span> Add OLT
-            </Link>
-            <a className="btn btn-primary margin-left margin-bottom export-button" style={{ marginLeft: '10px', cursor: 'pointer' }}>Export OLTs list</a>
+            </a>
+            <OltActions olts={rows} />
           </div>
 
           <div className="table-responsive">
@@ -26,59 +38,19 @@ export default async function OltListingPage() {
               <thead>
                 <tr>
                   <th className="text-center">View</th>
-                  <th className="text-center">
-                    <a className="sort-link" href="#">
-                      ID <i className="fa fa-chevron-down"></i>
-                    </a>
-                  </th>
+                  <th className="text-center">ID</th>
                   <th className="text-center">Status</th>
-                  <th>
-                    <a className="sort-link" href="#">Name</a>
-                  </th>
-                  <th>
-                    <a className="sort-link" href="#">OLT IP</a>
-                  </th>
-                  <th>
-                    <a className="sort-link" href="#">TCP</a>
-                  </th>
-                  <th>
-                    <a className="sort-link" href="#">UDP</a>
-                  </th>
-                  <th>
-                    <a className="sort-link" href="#">OLT hardware version</a>
-                  </th>
-                  <th>
-                    <a className="sort-link" href="#">OLT SW version</a>
-                  </th>
+                  <th>Name</th>
+                  <th>OLT IP</th>
+                  <th>TCP</th>
+                  <th>UDP</th>
+                  <th>OLT hardware version</th>
+                  <th>OLT SW version</th>
                   <th className="text-center">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {olts.map((olt) => (
-                  <tr key={olt.id}>
-                    <td className="text-center">
-                       <Link className="btn btn-success" href={`/olt/olt_details/${olt.id}/details`}>View</Link>
-                    </td>
-                    <td className="text-center">{olt.id}</td>
-                    <td className="text-center">
-                      <span className="status-dot green-dot" style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#5cb85c', borderRadius: '50%' }}></span>
-                    </td>
-                    <td>{olt.name}</td>
-                    <td>{olt.ip_address}</td>
-                    <td>{olt.telnet_port}</td>
-                    <td>{olt.snmp_port}</td>
-                    <td>{olt.manufacturer ? `${olt.manufacturer.toUpperCase()}-` : ''}{olt.hardware_version || 'C600'}</td>
-                    <td>1.2.2</td>
-                    <td className="text-center">
-                      <button className="disable-olt btn btn-small btn-default margin-right" title="Disable OLT" style={{ marginRight: '5px' }}>
-                        <i className="fa fa-eye-slash"></i>
-                      </button>
-                      <Link className="btn btn-small btn-danger" href={`/settings/olts/delete/${olt.id}`} title="Delete">
-                        <i className="fa fa-trash"></i>
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                <OltActions olts={rows} mode="rows" />
                 {olts.length === 0 && (
                   <tr>
                     <td colSpan={10} className="text-center">No OLTs found.</td>

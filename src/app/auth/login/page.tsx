@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function LoginPage() {
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identity, password }),
+        body: JSON.stringify({ identity, password, remember }),
       });
 
       const data = await res.json();
@@ -89,7 +90,7 @@ export default function LoginPage() {
                   </div>
                   <div className="checkbox">
                     <label>
-                      <input type="checkbox" name="remember" value="1" id="remember" />
+                      <input type="checkbox" name="remember" id="remember" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                       Remember me
                     </label>
                   </div>

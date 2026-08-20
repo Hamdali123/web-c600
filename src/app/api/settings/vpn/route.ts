@@ -26,6 +26,23 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+
+    const body = await request.json();
+    const vpn = await prisma.vPNTunnel.update({
+      where: { id: parseInt(id) },
+      data: { name: body.name, subnet: body.subnet }
+    });
+    return NextResponse.json({ success: true, vpn });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to update tunnel' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

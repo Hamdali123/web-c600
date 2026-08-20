@@ -111,6 +111,10 @@ function ConfiguredOnuContent() {
     board: searchParams.get('board') || 'all',
     port: searchParams.get('port') || 'all',
     pon_type: searchParams.get('pon_type') || 'all',
+    mgmt_ip: searchParams.get('mgmt_ip') || '',
+    voip: searchParams.get('voip') || 'all',
+    catv: searchParams.get('catv') || 'all',
+    wan_mode: searchParams.get('wan_mode') || 'all',
     page: parseInt(searchParams.get('page') || '1')
   });
   
@@ -520,50 +524,41 @@ function ConfiguredOnuContent() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '10px' }}>
               <div className="form-group" style={{ width: '13%' }}>
                 <label className="control-label">Mgmt IP</label>
-                <select className="form-control"><option>Any</option></select>
-              </div>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">TR-069</label>
-                <select className="form-control"><option>Any</option></select>
+                <input type="text" className="form-control" placeholder="Any" value={filters.mgmt_ip} onChange={e => setFilters({ ...filters, mgmt_ip: e.target.value, page: 1 })} />
               </div>
               <div className="form-group" style={{ width: '13%' }}>
                 <label className="control-label">VoIP</label>
-                <select className="form-control"><option>Any</option></select>
+                <select className="form-control" value={filters.voip} onChange={e => setFilters({ ...filters, voip: e.target.value, page: 1 })}>
+                  <option value="all">Any</option>
+                  <option value="Up">Up</option>
+                  <option value="Down">Down</option>
+                </select>
               </div>
               <div className="form-group" style={{ width: '13%' }}>
                 <label className="control-label">CATV</label>
-                <select className="form-control"><option>Any</option></select>
+                <select className="form-control" value={filters.catv} onChange={e => setFilters({ ...filters, catv: e.target.value, page: 1 })}>
+                  <option value="all">Any</option>
+                  <option value="Up">Up</option>
+                  <option value="Down">Down</option>
+                </select>
               </div>
               <div className="form-group" style={{ width: '13%' }}>
                 <label className="control-label">WAN mode</label>
-                <select className="form-control"><option>Any</option></select>
+                <select className="form-control" value={filters.wan_mode} onChange={e => setFilters({ ...filters, wan_mode: e.target.value, page: 1 })}>
+                  <option value="all">Any</option>
+                  <option value="PPPoE">PPPoE</option>
+                  <option value="DHCP">DHCP</option>
+                  <option value="Static">Static</option>
+                  <option value="Hotspot">Hotspot</option>
+                </select>
               </div>
               <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">Configuration method</label>
-                <select className="form-control"><option>Any</option></select>
-              </div>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">WAN IP protocol</label>
-                <select className="form-control"><option>Any</option></select>
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">Download</label>
-                <select className="form-control"><option>Any</option></select>
-              </div>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">Upload</label>
-                <select className="form-control"><option>Any</option></select>
-              </div>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">Status changed before</label>
-                <input type="text" className="form-control" />
-              </div>
-              <div className="form-group" style={{ width: '13%' }}>
-                <label className="control-label">Resync failed</label>
-                <select className="form-control"><option>Any</option></select>
+                <label className="control-label">ONU mode</label>
+                <select className="form-control" value={filters.onu_mode} onChange={e => setFilters({ ...filters, onu_mode: e.target.value, page: 1 })}>
+                  <option value="all">Any</option>
+                  <option value="bridging">Bridging</option>
+                  <option value="routing">Routing</option>
+                </select>
               </div>
             </div>
 

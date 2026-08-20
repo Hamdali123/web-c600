@@ -1,18 +1,32 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { verifyPassword, hashPassword, isHashed } from '@/lib/password';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { identity, password } = body;
+    const { identity, password, remember } = body;
 
-    const user = await prisma.user.findUnique({
-      where: { email: identity }
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identity },
+          { username: identity }
+        ]
+      }
     });
 
-    if (!user || user.password !== password) {
-      return NextResponse.json({ success: false, error: 'Invalid email or password' }, { status: 401 });
+    if (!user || !verifyPassword(password || '', user.password)) {
+      return NextResponse.json({ success: false, error: 'Invalid email/username or password' }, { status: 401 });
+    }
+
+    // Upgrade legacy plaintext passwords to scrypt hash on successful login
+    if (!isHashed(user.password)) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashPassword(user.password) }
+      });
     }
 
     if (user.status !== 'Active') {
@@ -35,12 +49,12 @@ export async function POST(request: Request) {
     // Encode user info as base64 for easy parsing in Edge middleware and frontend
     const tokenPayload = Buffer.from(JSON.stringify(userInfo)).toString('base64');
 
-    // Set cookie
+    // Set cookie — remember me: 30 days, otherwise session-scoped (deleted on browser close)
     const cookieStore = await cookies();
     cookieStore.set('auth_token', tokenPayload, {
       httpOnly: false, // false so ClientLayout can read it
       secure: false,
-      maxAge: 60 * 60 * 24, // 1 day
+      maxAge: remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24, // 30 days or 1 day
       path: '/'
     });
 

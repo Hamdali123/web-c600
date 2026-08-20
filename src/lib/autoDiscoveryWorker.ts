@@ -1,8 +1,9 @@
 import cron from 'node-cron';
 import fs from 'fs';
-import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails, authorizeOnu, executeOltCommandBatch, parseOltAttenuation, parseOnuDetails } from './oltConnection';
+import { executeOltCommand, OltCredentials, readOltAttenuation, getOltMetrics, getOnuDetails, authorizeOnu, executeOltCommandBatch, parseOltAttenuation, parseOnuDetails, getOnuStateOnPort, pickFreeOnuId, saveConfig } from './oltConnection';
 import prisma from './prisma';
 import { createNotification } from './notifications';
+import { logActivity } from './activityLogger';
 
 // Universal GPON Vendor Prefix & Model Lookup Engine (ITU-T G.984)
 function detectOnuType(sn: string, rawModel: string | null): string {
@@ -167,6 +168,216 @@ cron.schedule('* * * * *', async () => {
 
 // 2. Status Sync: Update status (Online/Offline) dan Sinyal ONU (Setiap 2 menit)
 let isStatusSyncing = false;
+
+// Shared: refresh Online/Offline statuses for all configured ONUs of one OLT.
+// Used by the 2-minute cron AND by the real Auto-Resync task.
+export async function syncOltOnuStates(olt: any, creds: OltCredentials): Promise<{ online: number; offline: number }> {
+    const configuredOnus = await prisma.oNUConfigured.findMany({ where: { olt_id: olt.id } });
+    if (configuredOnus.length === 0) return { online: 0, offline: 0 };
+
+    const stateOutput = await executeOltCommand(creds, 'show gpon onu state');
+    const stateLines = stateOutput.split('\n');
+
+    let online = 0;
+    let offline = 0;
+
+    for (const onu of configuredOnus) {
+        let portNumber = (onu.pon_port || '')
+            .replace('gpon-olt_', '')
+            .replace('gpon_olt-', '')
+            .replace('gpon-onu_', '')
+            .replace('gpon_onu-', '');
+
+        const targetIndex = `${portNumber}:${onu.onu_id}`;
+
+        let state = null;
+        let adminState = null;
+        for (const line of stateLines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith(targetIndex + ' ') || trimmed.startsWith(targetIndex + '\t')) {
+                const parts = trimmed.split(/\s+/);
+                if (parts.length >= 4) {
+                    adminState = parts[1]?.toLowerCase();
+                    state = parts[3]?.toLowerCase();
+                }
+                break;
+            }
+        }
+
+        if (!state && !adminState) continue;
+
+        let status: string;
+        let reason: string | null = null;
+        if (adminState === 'disable') {
+            status = 'Offline';
+            reason = 'admin_disabled';
+        } else if (state === 'working') {
+            status = 'Online';
+            reason = null;
+        } else {
+            status = 'Offline';
+            reason = state;
+        }
+
+        await prisma.oNUConfigured.update({
+            where: { id: onu.id },
+            data: {
+                status: status,
+                offline_reason: reason,
+                ...(status === 'Offline' ? { signal: null, signal_tx: null } : {})
+            }
+        });
+
+        if (status === 'Online') {
+            online++;
+        } else {
+            offline++;
+            const offlineReasonLower = reason?.toLowerCase() || '';
+            if (offlineReasonLower.includes('power') || offlineReasonLower.includes('los') || offlineReasonLower.includes('dying-gasp') || offlineReasonLower.includes('dyinggasp')) {
+                await createNotification(
+                    onu.id,
+                    `ONU ${onu.name} is ${status} (${reason})`,
+                    offlineReasonLower.includes('los') ? 'error' : 'warning'
+                );
+            }
+        }
+    }
+
+    return { online, offline };
+}
+
+// Shared: re-map DB pon_port/onu_id to the physical OLT state (Auto-Move).
+export async function syncOnuLocations(olt: any, creds: OltCredentials): Promise<number> {
+    const stateOutput = await executeOltCommand(creds, 'show gpon onu state');
+    const stateLines = stateOutput.split('\n');
+    const configuredOnus = await prisma.oNUConfigured.findMany({ where: { olt_id: olt.id } });
+
+    let moved = 0;
+    for (const onu of configuredOnus) {
+        let currentPort = (onu.pon_port || '').replace('gpon_olt-', '').replace('gpon_olt_', '').replace('gpon-olt_', '');
+        const currentIndex = `${currentPort}:${onu.onu_id}`;
+
+        // Find this ONU's row by SN if possible; rows have no SN, so match by index.
+        let matchedIndex: string | null = null;
+        for (const line of stateLines) {
+            const trimmed = line.trim();
+            const idxMatch = trimmed.match(/^(\d+\/\d+\/\d+):(\d+)\s/);
+            if (idxMatch) {
+                const idx = `${idxMatch[1]}:${idxMatch[2]}`;
+                if (idx === currentIndex) { matchedIndex = idx; break; }
+            }
+        }
+        if (matchedIndex === currentIndex) continue;
+
+        // The ONU physically sits elsewhere (or was re-authorized with a new id).
+        if (matchedIndex) {
+            const [newPort, newId] = matchedIndex.split(':');
+            await prisma.oNUConfigured.update({
+                where: { id: onu.id },
+                data: { pon_port: `gpon_olt-${newPort}`, onu_id: newId }
+            });
+            moved++;
+        }
+    }
+    return moved;
+}
+
+// Shared: real Auto-Authorize — pick a matching preset and register the ONU on the physical OLT.
+async function authorizeUnconfiguredOlt(olt: any, creds: OltCredentials, maxBatch: number): Promise<{ processed: number; successful: number; failed: number }> {
+    const uncfgOnus = await prisma.oNUUnconfigured.findMany({ where: { olt_id: olt.id }, take: maxBatch });
+    let successful = 0;
+    let failed = 0;
+
+    for (const uncfg of uncfgOnus) {
+        const preset = await prisma.authPreset.findFirst({
+            where: {
+                OR: [
+                    { sn_pattern: { contains: uncfg.sn_mac } },
+                    { is_default: true, olt_id: olt.id },
+                    { is_default: true, olt_id: null }
+                ]
+            }
+        }).catch(() => null);
+
+        if (!preset || !preset.vlan) {
+            failed++;
+            continue;
+        }
+
+        const onuType = preset.onu_type_id ? await prisma.oNUType.findUnique({ where: { id: preset.onu_type_id } }) : null;
+        const speedProfile = preset.profile_id ? await prisma.speedProfile.findUnique({ where: { id: preset.profile_id } }) : null;
+
+        let canonicalPort = (uncfg.pon_port || '').trim();
+        if (canonicalPort && !/^gpon[-_]?olt[-_]?/i.test(canonicalPort)) {
+            canonicalPort = `gpon_olt-${canonicalPort}`;
+        }
+
+        try {
+            let finalOnuId = uncfg.onu_id || '';
+            if (!finalOnuId) {
+                const physicalEntries = await getOnuStateOnPort(creds, canonicalPort);
+                const freeId = pickFreeOnuId(physicalEntries);
+                if (freeId !== null) {
+                    finalOnuId = String(freeId);
+                } else {
+                    const existing = await prisma.oNUConfigured.findMany({
+                        where: { olt_id: olt.id, pon_port: canonicalPort },
+                        select: { onu_id: true }
+                    });
+                    const used = existing.map(o => parseInt(o.onu_id || '0')).filter(n => !isNaN(n));
+                    let next = 1;
+                    while (used.includes(next)) next++;
+                    finalOnuId = String(next);
+                }
+            }
+
+            const mode = preset.mode === 'Routing' ? 'route' : 'bridge';
+            await authorizeOnu(creds, {
+                sn: uncfg.sn_mac,
+                portInfo: canonicalPort,
+                onuId: finalOnuId,
+                onuType: onuType?.name || undefined,
+                vlan: String(preset.vlan),
+                name: preset.location_name || `ONU ${uncfg.sn_mac}`,
+                mode,
+                profileName: speedProfile?.name
+            });
+
+            try { await saveConfig(creds); } catch (e) {}
+
+            const physicalEntries = await getOnuStateOnPort(creds, canonicalPort);
+            const registered = physicalEntries.find(e => e.onuId === finalOnuId);
+            const physicalState = registered ? `${registered.adminState}/${registered.phase}` : 'not-found';
+
+            await prisma.oNUConfigured.create({
+                data: {
+                    sn_mac: uncfg.sn_mac,
+                    name: preset.location_name || `ONU ${uncfg.sn_mac}`,
+                    olt_id: olt.id,
+                    pon_port: canonicalPort,
+                    onu_id: finalOnuId,
+                    vlan: String(preset.vlan),
+                    mode,
+                    onu_type_id: preset.onu_type_id,
+                    zone_id: preset.zone_id,
+                    odb_id: preset.odb_id,
+                    profile_id: preset.profile_id,
+                    status: physicalState.startsWith('enable/working') ? 'Online' : 'Offline',
+                    wan_mode: 'PPPoE'
+                }
+            });
+            await prisma.oNUUnconfigured.deleteMany({ where: { sn_mac: uncfg.sn_mac } });
+            await logActivity('Auto-Authorize ONU', `Auto-authorized SN: ${uncfg.sn_mac} on ${canonicalPort}:${finalOnuId} (${physicalState})`, 'Success');
+            successful++;
+        } catch (e: any) {
+            failed++;
+            await logActivity('Auto-Authorize ONU', `Auto-authorize failed for SN ${uncfg.sn_mac}: ${e.message}`, 'Error');
+        }
+    }
+
+    return { processed: uncfgOnus.length, successful, failed };
+}
+
 // Staggered detail refresh: per cycle only 1/DETAIL_ROTATION of online ONUs get
 // signal/distance/uptime refreshed (rotating), so each ONU is fully refreshed
 // every DETAIL_ROTATION cycles (~20 min at 2-min cycles). This matches the real
@@ -178,7 +389,7 @@ cron.schedule('*/2 * * * *', async () => {
     if (isStatusSyncing) return;
     isStatusSyncing = true;
     try {
-        const olts = await prisma.oLTDevice.findMany();
+        const olts = await prisma.oLTDevice.findMany({ where: { disabled: false } });
         for (const olt of olts) {
             const creds: OltCredentials = {
                 ip: olt.ip_address,
@@ -495,31 +706,96 @@ cron.schedule('*/5 * * * *', async () => {
     }
 });
 
-// 3. Auto-Tasks Processor (Resync, Move)
+// 3. Auto-Tasks Processor (Auto-Authorize, Auto-Resync, Auto-Move) — real actions
 let isAutoTaskProcessing = false;
 cron.schedule('*/5 * * * *', async () => {
     if (isAutoTaskProcessing) return;
     isAutoTaskProcessing = true;
     try {
         const runningTasks = await prisma.autoTask.findMany({
-            where: { status: 'Running', action: { in: ['Auto-Resync', 'Auto-Move'] } }
+            where: { status: 'Running' }
         });
 
         for (const task of runningTasks) {
-            // For now, simulate the task processing or do basic operations
-            // A full Auto-Resync would iterate over all ONUs for the OLT and re-push their configs.
-            
-            // To prevent blocking, just simulate progress for this demo, or process 1 batch
-            if (task.action === 'Auto-Resync') {
-                const count = await prisma.oNUConfigured.count({ where: { olt_id: task.olt_id } });
-                if (task.processed >= count) {
-                    await prisma.autoTask.update({ where: { id: task.id }, data: { status: 'Finished', end_time: new Date() } });
-                } else {
-                    // Simulate processing 5 ONUs
-                    await prisma.autoTask.update({ where: { id: task.id }, data: { processed: { increment: 5 }, successful: { increment: 5 } } });
+            const olt = await prisma.oLTDevice.findUnique({ where: { id: task.olt_id } });
+            if (!olt) {
+                await prisma.autoTask.update({
+                    where: { id: task.id },
+                    data: { status: 'Stopped', end_time: new Date(), stopped_by: 'system (OLT not found)' }
+                });
+                continue;
+            }
+            if (olt.disabled) {
+                await prisma.autoTask.update({
+                    where: { id: task.id },
+                    data: { status: 'Stopped', end_time: new Date(), stopped_by: 'system (OLT disabled)' }
+                });
+                continue;
+            }
+
+            const creds: OltCredentials = {
+                ip: olt.ip_address,
+                port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
+                username: olt.telnet_user || '',
+                password: olt.telnet_pass || '',
+                protocol: (olt.protocol as any) || 'telnet',
+                vendor: (olt.vendor as any) || 'zte'
+            };
+
+            try {
+                if (task.action === 'Auto-Authorize') {
+                    const remaining = await prisma.oNUUnconfigured.count({ where: { olt_id: olt.id } });
+                    if (remaining === 0) {
+                        await prisma.autoTask.update({
+                            where: { id: task.id },
+                            data: { status: 'Finished', end_time: new Date(), successful: task.successful, processed: task.processed, failed: task.failed }
+                        });
+                        continue;
+                    }
+                    const batch = Math.min(remaining, 3); // 3 ONUs per cycle to keep telnet responsive
+                    const { processed, successful, failed } = await authorizeUnconfiguredOlt(olt, creds, batch);
+                    const left = remaining - processed;
+                    await prisma.autoTask.update({
+                        where: { id: task.id },
+                        data: {
+                            processed: { increment: processed },
+                            successful: { increment: successful },
+                            failed: { increment: failed },
+                            ...(left === 0 ? { status: 'Finished', end_time: new Date() } : {})
+                        }
+                    });
+                } else if (task.action === 'Auto-Resync') {
+                    const total = await prisma.oNUConfigured.count({ where: { olt_id: olt.id } });
+                    const { online, offline } = await syncOltOnuStates(olt, creds);
+                    await prisma.autoTask.update({
+                        where: { id: task.id },
+                        data: {
+                            processed: total,
+                            successful: online,
+                            failed: offline,
+                            status: 'Finished',
+                            end_time: new Date()
+                        }
+                    });
+                } else if (task.action === 'Auto-Move') {
+                    const moved = await syncOnuLocations(olt, creds);
+                    await prisma.autoTask.update({
+                        where: { id: task.id },
+                        data: {
+                            processed: moved,
+                            successful: moved,
+                            failed: 0,
+                            status: 'Finished',
+                            end_time: new Date()
+                        }
+                    });
                 }
-            } else if (task.action === 'Auto-Move') {
-                await prisma.autoTask.update({ where: { id: task.id }, data: { status: 'Finished', end_time: new Date() } });
+            } catch (e: any) {
+                console.error(`AutoTask processor error for ${task.action} OLT ${olt.name}:`, e);
+                await prisma.autoTask.update({
+                    where: { id: task.id },
+                    data: { status: 'Stopped', end_time: new Date(), stopped_by: `system (${e.message})` }
+                });
             }
         }
     } catch (e) {

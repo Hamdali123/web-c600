@@ -13,7 +13,12 @@ export default function GraphsPage() {
   const [port, setPort] = useState('Any');
   const [zone, setZone] = useState('Any');
   const [splitter, setSplitter] = useState('Any');
-  
+
+  const [boards, setBoards] = useState<string[]>([]);
+  const [ports, setPorts] = useState<string[]>([]);
+  const [zones, setZones] = useState<any[]>([]);
+  const [odbs, setOdbs] = useState<any[]>([]);
+
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<any>({ totalOnus: 0 });
@@ -22,7 +27,49 @@ export default function GraphsPage() {
     fetch('/api/settings/olt')
       .then(r => r.json())
       .then(data => setOlts(Array.isArray(data) ? data : []));
+    fetch('/api/settings/master')
+      .then(r => r.json())
+      .then(data => {
+        setZones(Array.isArray(data?.zones) ? data.zones : []);
+        setOdbs(Array.isArray(data?.odbs) ? data.odbs : []);
+      })
+      .catch(() => {});
   }, []);
+
+  // Build Board/Port dropdowns from real PON ports (per selected OLT, or all)
+  useEffect(() => {
+    if (olts.length === 0) return;
+    const targetOlts = selectedOlt === 'Any' ? olts : olts.filter(o => String(o.id) === selectedOlt);
+    let cancelled = false;
+    const collect = async () => {
+      const boardSet = new Set<string>();
+      const portSet = new Set<string>();
+      for (const olt of targetOlts) {
+        try {
+          const res = await fetch(`/api/settings/olt/${olt.id}/pon-ports`);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            for (const p of data) {
+              const v = String(p.value || '');
+              const m = v.match(/^(\d+\/\d+)\/\d+$/);
+              if (m) {
+                boardSet.add(m[1]);
+                portSet.add(v);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      if (!cancelled) {
+        setBoards(Array.from(boardSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
+        setPorts(Array.from(portSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
+        setBoard(b => (b !== 'Any' && !boardSet.has(b) ? 'Any' : b));
+        setPort(p => (p !== 'Any' && !portSet.has(p) ? 'Any' : p));
+      }
+    };
+    collect();
+    return () => { cancelled = true; };
+  }, [selectedOlt, olts]);
 
   const fetchGraphData = async () => {
     setLoading(true);
@@ -255,30 +302,28 @@ export default function GraphsPage() {
           <label className="small text-muted" style={{ margin: 0 }}>Board</label>
           <select className="form-control input-sm" style={{ width: '100px' }} value={board} onChange={e => setBoard(e.target.value)}>
             <option value="Any">Any</option>
-            <option value="1/1">1/1</option>
-            <option value="1/2">1/2</option>
+            {boards.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label className="small text-muted" style={{ margin: 0 }}>Port</label>
           <select className="form-control input-sm" style={{ width: '100px' }} value={port} onChange={e => setPort(e.target.value)}>
             <option value="Any">Any</option>
-            {[...Array(16)].map((_, i) => <option key={i} value={`1/2/${i+1}`}>1/2/{i+1}</option>)}
+            {ports.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label className="small text-muted" style={{ margin: 0 }}>Zone</label>
           <select className="form-control input-sm" style={{ width: '120px' }} value={zone} onChange={e => setZone(e.target.value)}>
             <option value="Any">Any</option>
-            <option value="1">Zone 1</option>
-            <option value="2">Zone 2</option>
+            {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label className="small text-muted" style={{ margin: 0 }}>Splitter</label>
           <select className="form-control input-sm" style={{ width: '120px' }} value={splitter} onChange={e => setSplitter(e.target.value)}>
             <option value="Any">Any</option>
-            <option value="1">Splitter 1</option>
+            {odbs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         </div>
       </div>

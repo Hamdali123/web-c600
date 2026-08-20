@@ -77,7 +77,7 @@ function GeneralSettingsContent() {
   // --- 2. Users Tab States & Fetching ---
   const [users, setUsers] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [userForm, setUserForm] = useState({ name: '', email: '', password: '', role: 'tech_user' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', username: '', password: '', role: 'tech_user' });
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -102,7 +102,7 @@ function GeneralSettingsContent() {
       const data = await res.json();
       if (data.success) {
         alert('User created successfully!');
-        setUserForm({ name: '', email: '', password: '', role: 'tech_user' });
+        setUserForm({ name: '', email: '', username: '', password: '', role: 'tech_user' });
         fetchUsers();
       } else {
         alert('Error: ' + data.error);
@@ -372,6 +372,10 @@ function GeneralSettingsContent() {
                         <div className="form-group">
                           <label className="small text-muted">Email Address</label>
                           <input type="email" className="form-control input-sm" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} required />
+                        </div>
+                        <div className="form-group">
+                          <label className="small text-muted">Username (optional, for login)</label>
+                          <input type="text" className="form-control input-sm" value={userForm.username} onChange={e => setUserForm({...userForm, username: e.target.value})} placeholder="e.g. admin2" />
                         </div>
                         <div className="form-group">
                           <label className="small text-muted">Password</label>

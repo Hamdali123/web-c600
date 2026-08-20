@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { hashPassword } from '@/lib/password';
 
 export async function GET() {
   try {
@@ -15,13 +16,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, password, role } = body;
+    const { name, email, username, password, role } = body;
 
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password, // In real app, we should hash this!
+        username: username || null,
+        password: hashPassword(password),
         role,
         status: 'Active'
       }

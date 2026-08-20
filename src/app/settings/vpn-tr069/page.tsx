@@ -24,9 +24,152 @@ export default function VpnTr069Page() {
   // Form states
   const [showTunnelModal, setShowTunnelModal] = useState(false);
   const [tunnelForm, setTunnelForm] = useState({ name: '', subnet: '10.69.69.0/24' });
+  const [editTunnelId, setEditTunnelId] = useState<number | null>(null);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', acs_url: 'http://10.69.69.1:14501' });
+  const [editProfileId, setEditProfileId] = useState<number | null>(null);
+
+  // Logs / script modals
+  const [logsTunnel, setLogsTunnel] = useState<any>(null);
+  const [scriptTunnel, setScriptTunnel] = useState<any>(null);
+  const [logEntries, setLogEntries] = useState<any[]>([]);
+  const [bindingSel, setBindingSel] = useState<Record<number, string>>({});
+  const [filesProfile, setFilesProfile] = useState<any>(null);
+  const [filesData, setFilesData] = useState<any>(null);
+
+  const openLogs = async (t: any) => {
+    setLogsTunnel(t);
+    setLogEntries([]);
+    try {
+      const res = await fetch('/api/settings/system-logs');
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [];
+      setLogEntries(arr.filter((l: any) =>
+        (l.details && String(l.details).toLowerCase().includes(t.name.toLowerCase())) ||
+        (l.action && String(l.action).toLowerCase().includes('vpn'))
+      ).slice(0, 10));
+    } catch (e) {}
+  };
+
+  const openScript = (t: any) => {
+    const script = [
+      `# Mikrotik VPN client setup (tunnel: ${t.name})`,
+      `# Replace vpn-server.example.com with the public address of your VPN server.`,
+      `/interface ovpn-client add connect-to=vpn-server.example.com port=1194 mode=ip name=${t.name} user=${t.name} password=changeme`,
+      `/interface ovpn-client set ${t.name} disabled=no`,
+      `/ip route add dst-address=${t.subnet || '10.69.69.0/24'} gateway=${t.name}`,
+      ``,
+      `# Notes:`,
+      `# - The OLT must be reachable through this tunnel for TR069 to work.`,
+      `# - Subnet in use: ${t.subnet || '10.69.69.0/24'}`
+    ].join('\n');
+    setScriptTunnel(t);
+    (document.getElementById('mikrotik-script') as HTMLTextAreaElement).value = script;
+  };
+
+  const copyScript = async () => {
+    const el = document.getElementById('mikrotik-script') as HTMLTextAreaElement;
+    try {
+      await navigator.clipboard.writeText(el.value);
+      alert('Script copied to clipboard.');
+    } catch (e) {
+      el.select();
+      document.execCommand('copy');
+      alert('Script copied to clipboard.');
+    }
+  };
+
+  const openFiles = async (p: any) => {
+    setFilesProfile(p);
+    setFilesData(null);
+    try {
+      const res = await fetch(`/api/onus/configured?profile=${p.id}&limit=100`);
+      const json = await res.json();
+      const list = Array.isArray(json) ? json : (json.data || []);
+      const res2 = await fetch('/api/settings/auth-presets');
+      const presets = await res2.json();
+      const presetCount = Array.isArray(presets) ? presets.filter((x: any) => x.tr069_profile_id === p.id).length : 0;
+      setFilesData({ onus: list.length, presetCount });
+    } catch (e) {}
+  };
+
+  const handleSaveTunnel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(editTunnelId ? `/api/settings/vpn?id=${editTunnelId}` : '/api/settings/vpn', {
+        method: editTunnelId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tunnelForm),
+      });
+      if (res.ok) {
+        setTunnelForm({ name: '', subnet: '10.69.69.0/24' });
+        setEditTunnelId(null);
+        setShowTunnelModal(false);
+        fetchTunnels();
+      }
+    } catch (e) {}
+  };
+
+  const handleDeleteTunnel = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this tunnel?")) return;
+    try {
+      await fetch(`/api/settings/vpn?id=${id}`, { method: 'DELETE' });
+      fetchTunnels();
+    } catch (e) {}
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(editProfileId ? `/api/settings/tr069?id=${editProfileId}` : '/api/settings/tr069', {
+        method: editProfileId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileForm),
+      });
+      if (res.ok) {
+        setProfileForm({ name: '', acs_url: 'http://10.69.69.1:14501' });
+        setEditProfileId(null);
+        setShowProfileModal(false);
+        fetchProfiles();
+      }
+    } catch (e) {}
+  };
+
+  const handleSetOlts = async (p: any) => {
+    const sel = bindingSel[p.id];
+    if (!sel) {
+      alert('Pilih OLT terlebih dahulu.');
+      return;
+    }
+    const current: string[] = (() => {
+      try { return p.olt_ids ? JSON.parse(p.olt_ids) : []; } catch (e) { return []; }
+    })();
+    const next = current.includes(sel) ? current : [...current, sel];
+    try {
+      const res = await fetch(`/api/settings/tr069?id=${p.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p, olt_ids: JSON.stringify(next) }),
+      });
+      if (res.ok) {
+        fetchProfiles();
+        alert(`Profile "${p.name}" bound to OLT ${sel}.`);
+      } else {
+        alert('Gagal menyimpan binding.');
+      }
+    } catch (e) {
+      alert('Gagal menyimpan binding.');
+    }
+  };
+
+  const handleDeleteProfile = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this profile?")) return;
+    try {
+      await fetch(`/api/settings/tr069?id=${id}`, { method: 'DELETE' });
+      fetchProfiles();
+    } catch (e) {}
+  };
 
   const fetchTunnels = async () => {
     try {
@@ -59,54 +202,6 @@ export default function VpnTr069Page() {
     fetchProfiles();
     fetchOlts();
   }, []);
-
-  const handleAddTunnel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/settings/vpn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tunnelForm),
-      });
-      if (res.ok) {
-        setTunnelForm({ name: '', subnet: '10.69.69.0/24' });
-        setShowTunnelModal(false);
-        fetchTunnels();
-      }
-    } catch (e) {}
-  };
-
-  const handleDeleteTunnel = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this tunnel?")) return;
-    try {
-      await fetch(`/api/settings/vpn?id=${id}`, { method: 'DELETE' });
-      fetchTunnels();
-    } catch (e) {}
-  };
-
-  const handleAddProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/settings/tr069', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profileForm),
-      });
-      if (res.ok) {
-        setProfileForm({ name: '', acs_url: 'http://10.69.69.1:14501' });
-        setShowProfileModal(false);
-        fetchProfiles();
-      }
-    } catch (e) {}
-  };
-
-  const handleDeleteProfile = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this profile?")) return;
-    try {
-      await fetch(`/api/settings/tr069?id=${id}`, { method: 'DELETE' });
-      fetchProfiles();
-    } catch (e) {}
-  };
 
   return (
     <div className="container-fluid content-wrap">
@@ -201,7 +296,7 @@ export default function VpnTr069Page() {
                                   {t.status || 'Disconnected'}
                                 </span>
                                 <br />
-                                <a href="#" style={{ color: '#0064C8', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); alert("VPN logs are clear."); }}>
+                                <a href="#" style={{ color: '#0064C8', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); openLogs(t); }}>
                                   <i className="fa fa-file-text-o"></i> Logs
                                 </a>
                               </td>
@@ -210,10 +305,10 @@ export default function VpnTr069Page() {
                                 10.90.0.0/23{"\n"}172.16.100.4/30
                               </td>
                               <td>
-                                <button className="btn btn-success margin-bottom" onClick={() => alert("Mikrotik config setup script: \n/interface ovpn-client add connect-to=vpn.smartolt.com user=" + t.name)}>
+                                <button className="btn btn-success margin-bottom" onClick={() => openScript(t)}>
                                   <i className="fa fa-file-code-o"></i> Mikrotik VPN setup
                                 </button>
-                                <button className="btn btn-primary margin-bottom margin-left" onClick={() => alert("Edit features coming soon!")}>
+                                <button className="btn btn-primary margin-bottom margin-left" onClick={() => { setEditTunnelId(t.id); setTunnelForm({ name: t.name, subnet: t.subnet || '10.69.69.0/24' }); setShowTunnelModal(true); }}>
                                   Edit
                                 </button>
                                 <button className="btn btn-danger margin-bottom margin-left" onClick={() => handleDeleteTunnel(t.id)}>
@@ -304,23 +399,35 @@ export default function VpnTr069Page() {
                                 CWMP: <i className="fa fa-check-circle-o text-success" title="Service active"></i>
                               </td>
                               <td className="text-center">
-                                <select className="form-control" defaultValue={olts[0]?.id}>
-                                  {olts.map(o => (
-                                    <option key={o.id} value={o.id}>
-                                      {o.id} - {o.name}
-                                    </option>
-                                  ))}
+                                <select
+                                  className="form-control"
+                                  value={bindingSel[p.id] || ''}
+                                  onChange={e => setBindingSel({ ...bindingSel, [p.id]: e.target.value })}
+                                >
+                                  <option value="">-- pilih OLT --</option>
+                                  {olts.map(o => {
+                                    let bound: string[] = [];
+                                    try { bound = p.olt_ids ? JSON.parse(p.olt_ids) : []; } catch (e) {}
+                                    return (
+                                      <option key={o.id} value={o.id}>
+                                        {o.id} - {o.name} {bound.includes(String(o.id)) ? '(bound)' : ''}
+                                      </option>
+                                    );
+                                  })}
                                 </select>
                               </td>
                               <td className="text-right">
-                                <button className="btn btn-primary margin-bottom" onClick={() => alert("Profile OLT binding saved successfully!")}>
+                                <button className="btn btn-primary margin-bottom" onClick={() => handleSetOlts(p)}>
                                   Set OLTs
                                 </button>
                                 <button className="btn btn-success margin-bottom margin-left" onClick={() => alert("ACS URL: " + p.acs_url)}>
                                   View
                                 </button>
-                                <button className="btn btn-success margin-bottom margin-left" onClick={() => alert("Config files are active.")}>
+                                <button className="btn btn-success margin-bottom margin-left" onClick={() => openFiles(p)}>
                                   Files
+                                </button>
+                                <button className="btn btn-primary margin-bottom margin-left" onClick={() => { setEditProfileId(p.id); setProfileForm({ name: p.name, acs_url: p.acs_url }); setShowProfileModal(true); }}>
+                                  Edit
                                 </button>
                                 <button className="btn btn-danger margin-bottom margin-left" onClick={() => handleDeleteProfile(p.id)}>
                                   Del
@@ -344,15 +451,15 @@ export default function VpnTr069Page() {
         )}
       </div>
 
-      {/* CREATE VPN TUNNEL MODAL */}
+      {/* CREATE/EDIT VPN TUNNEL MODAL */}
       {showTunnelModal && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
             <div className="modal-content">
-              <form onSubmit={handleAddTunnel}>
+              <form onSubmit={handleSaveTunnel}>
                 <div className="modal-header">
-                  <button type="button" className="close" onClick={() => setShowTunnelModal(false)}>×</button>
-                  <h4 className="modal-title">Create a new VPN tunnel</h4>
+                  <button type="button" className="close" onClick={() => { setShowTunnelModal(false); setEditTunnelId(null); }}>×</button>
+                  <h4 className="modal-title">{editTunnelId ? 'Edit VPN tunnel' : 'Create a new VPN tunnel'}</h4>
                 </div>
                 <div className="modal-body">
                   <div className="form-group">
@@ -379,9 +486,9 @@ export default function VpnTr069Page() {
                 </div>
                 <div className="modal-footer">
                   <button type="submit" className="btn btn-primary">
-                    <i className="fa fa-plus"></i> Add tunnel
+                    <i className="fa fa-plus"></i> {editTunnelId ? 'Save changes' : 'Add tunnel'}
                   </button>
-                  <button type="button" className="btn btn-link" onClick={() => setShowTunnelModal(false)}>Close</button>
+                  <button type="button" className="btn btn-link" onClick={() => { setShowTunnelModal(false); setEditTunnelId(null); }}>Close</button>
                 </div>
               </form>
             </div>
@@ -389,15 +496,15 @@ export default function VpnTr069Page() {
         </div>
       )}
 
-      {/* CREATE TR069 PROFILE MODAL */}
+      {/* CREATE/EDIT TR069 PROFILE MODAL */}
       {showProfileModal && (
         <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
             <div className="modal-content">
-              <form onSubmit={handleAddProfile}>
+              <form onSubmit={handleSaveProfile}>
                 <div className="modal-header">
-                  <button type="button" className="close" onClick={() => setShowProfileModal(false)}>×</button>
-                  <h4 className="modal-title">Add new TR069 profile</h4>
+                  <button type="button" className="close" onClick={() => { setShowProfileModal(false); setEditProfileId(null); }}>×</button>
+                  <h4 className="modal-title">{editProfileId ? 'Edit TR069 profile' : 'Add new TR069 profile'}</h4>
                 </div>
                 <div className="modal-body">
                   <div className="form-group">
@@ -424,11 +531,97 @@ export default function VpnTr069Page() {
                 </div>
                 <div className="modal-footer">
                   <button type="submit" className="btn btn-primary">
-                    <i className="fa fa-plus"></i> Add profile
+                    <i className="fa fa-plus"></i> {editProfileId ? 'Save changes' : 'Add profile'}
                   </button>
-                  <button type="button" className="btn btn-link" onClick={() => setShowProfileModal(false)}>Close</button>
+                  <button type="button" className="btn btn-link" onClick={() => { setShowProfileModal(false); setEditProfileId(null); }}>Close</button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VPN LOGS MODAL */}
+      {logsTunnel && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button type="button" className="close" onClick={() => setLogsTunnel(null)}>×</button>
+                <h4 className="modal-title">VPN tunnel logs — {logsTunnel.name}</h4>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                {logEntries.length === 0 ? (
+                  <p className="text-muted">No activity logs for this tunnel.</p>
+                ) : (
+                  <table className="table table-striped">
+                    <thead><tr><th>Time</th><th>Action</th><th>Details</th></tr></thead>
+                    <tbody>
+                      {logEntries.map((l, i) => (
+                        <tr key={i}>
+                          <td style={{ whiteSpace: 'nowrap' }}>{new Date(l.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                          <td>{l.action}</td>
+                          <td>{l.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-link" onClick={() => setLogsTunnel(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MIKROTIK SCRIPT MODAL */}
+      {scriptTunnel && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button type="button" className="close" onClick={() => setScriptTunnel(null)}>×</button>
+                <h4 className="modal-title">Mikrotik VPN setup — {scriptTunnel.name}</h4>
+              </div>
+              <div className="modal-body">
+                <p className="text-muted">Ganti <code>vpn-server.example.com</code> dengan alamat publik server VPN, lalu copy script ke terminal RouterOS.</p>
+                <textarea id="mikrotik-script" className="form-control" rows={9} style={{ fontFamily: 'monospace', fontSize: '12px' }} readOnly />
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-success" onClick={copyScript}><i className="fa fa-copy"></i> Copy</button>
+                <button type="button" className="btn btn-link" onClick={() => setScriptTunnel(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROFILE FILES MODAL */}
+      {filesProfile && (
+        <div className="modal show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <button type="button" className="close" onClick={() => setFilesProfile(null)}>×</button>
+                <h4 className="modal-title">TR069 files — {filesProfile.name}</h4>
+              </div>
+              <div className="modal-body">
+                {!filesData ? (
+                  <p className="text-muted"><i className="fa fa-spinner fa-spin"></i> Loading...</p>
+                ) : (
+                  <ul className="list-unstyled">
+                    <li><i className="fa fa-file-text-o text-primary"></i> Config file: <code>tr069-{filesProfile.id}.conf</code> (auto-generated)</li>
+                    <li style={{ marginTop: '6px' }}><i className="fa fa-sitemap text-info"></i> ONUs using this profile: <strong>{filesData.onus}</strong></li>
+                    <li style={{ marginTop: '6px' }}><i className="fa fa-tasks text-success"></i> Auth presets referencing it: <strong>{filesData.presetCount}</strong></li>
+                    <li style={{ marginTop: '6px' }}><i className="fa fa-server text-muted"></i> Bound OLTs: <strong>{(() => { try { return (filesProfile.olt_ids ? JSON.parse(filesProfile.olt_ids).length : 0); } catch (e) { return 0; } })()}</strong></li>
+                  </ul>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-link" onClick={() => setFilesProfile(null)}>Close</button>
+              </div>
             </div>
           </div>
         </div>

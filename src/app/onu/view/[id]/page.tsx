@@ -171,7 +171,10 @@ export default function ViewOnuPage() {
       const data = await res.json();
       if (data.success && data.ports) {
         setEthPorts(data.ports);
-        if (Array.isArray(data.wifi)) setWifiPorts(data.wifi);
+        if (Array.isArray(data.wifi)) {
+          setWifiPorts(data.wifi);
+          setWifiEnabled(data.wifi.some((w: any) => String(w.adminState).toLowerCase() === 'enable' || String(w.adminState).toLowerCase() === 'up'));
+        }
       }
     } catch (e) {
       console.error(e);
@@ -389,8 +392,8 @@ export default function ViewOnuPage() {
   return (
     <div className="container-fluid onu-wrapper" style={{ paddingBottom: '50px' }}>
       <h2>View ONU</h2>
-      <div className="alert alert-success" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Successfully synced with SQLite backend database.</span>
+      <div className="alert alert-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span><i className="fa fa-info-circle"></i> Viewing ONU {onu.name} ({onu.sn_mac}) — data is synced automatically from the OLT.</span>
         <Link href="/onu/configured" className="btn btn-default btn-xs">Back to List</Link>
       </div>
 
@@ -445,9 +448,11 @@ export default function ViewOnuPage() {
 
             <dt>Configuration Preset</dt>
             <dd>
-              <a href="#" style={{ color: '#337ab7' }}>
-                <i className="fa fa-tasks"></i> None
-              </a>
+              {onu.profile?.name ? (
+                <span style={{ color: '#337ab7' }}><i className="fa fa-tasks"></i> {onu.profile.name}</span>
+              ) : (
+                <span style={{ color: '#999' }}>None</span>
+              )}
             </dd>
 
             <dt>Zone</dt>
@@ -487,8 +492,7 @@ export default function ViewOnuPage() {
 
             <dt>Authorization date</dt>
             <dd>
-              {new Date(onu.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '')} 
-              <a href="#" style={{ color: '#337ab7', marginLeft: '5px' }}>History</a>
+              {new Date(onu.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(',', '')}
             </dd>
 
             <dt>ONU external ID</dt>
@@ -546,12 +550,12 @@ export default function ViewOnuPage() {
 
             <dt>TR069 Profile</dt>
             <dd>
-              <a href="#" style={{ color: '#337ab7' }}>Inactive</a>
+              <span className="text-muted">Inactive</span>
             </dd>
 
             <dt>Mgmt IP</dt>
             <dd>
-              <a href="#" style={{ color: '#337ab7' }}>{onu.mgmt_ip || 'Inactive'}</a>
+              <span style={{ color: '#337ab7' }}>{onu.mgmt_ip || 'Inactive'}</span>
             </dd>
 
             <dt>Attached VLANs</dt>
@@ -762,8 +766,8 @@ export default function ViewOnuPage() {
                     </div>
                   </div>
                   <div>
-                    <a href="#" style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px' }}><i className="fa fa-refresh"></i></a>
-                    <a href="#" style={{ color: '#337ab7', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></a>
+                    <a href="#" onClick={(e) => { e.preventDefault(); fetchHistory(); }} style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px', cursor: 'pointer' }} title="Refresh traffic history"><i className="fa fa-refresh"></i></a>
+                    <span style={{ color: '#ccc', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></span>
                   </div>
                 </div>
               </div>
@@ -786,11 +790,11 @@ export default function ViewOnuPage() {
                 </div>
                 <div style={{ padding: '8px 10px', fontSize: '11px', color: '#666', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e' }}></span> 1310nm OLT Rx for ONU <span style={{ color: '#999', margin: '0 5px' }}>Current: {onu.signal || '-23.38'} Maximum: {onu.signal || '-23.38'}</span>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#f0ad4e' }}></span> 1310nm OLT Rx for ONU <span style={{ color: '#999', margin: '0 5px' }}>Current: {onu.signal ?? '—'} Maximum: {onu.signal ?? '—'}</span>
                   </div>
                   <div>
-                    <a href="#" style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px' }}><i className="fa fa-refresh"></i></a>
-                    <a href="#" style={{ color: '#337ab7', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></a>
+                    <a href="#" onClick={(e) => { e.preventDefault(); fetchOnu(); fetchHistory(); }} style={{ color: '#337ab7', fontSize: '14px', marginRight: '10px', cursor: 'pointer' }} title="Refresh signal"><i className="fa fa-refresh"></i></a>
+                    <span style={{ color: '#ccc', fontSize: '14px' }}><i className="fa fa-ellipsis-h"></i></span>
                   </div>
                 </div>
               </div>
@@ -864,7 +868,24 @@ export default function ViewOnuPage() {
         <dd style={{ paddingTop: '15px' }}>
           <div className="checkbox" style={{ margin: '0 0 10px 0' }}>
             <label style={{ fontWeight: 'bold' }}>
-              <input type="checkbox" checked={wifiEnabled} onChange={(e) => setWifiEnabled(e.target.checked)} /> Enable
+              <input type="checkbox" checked={wifiEnabled} onChange={async (e) => {
+                const checked = e.target.checked;
+                setWifiEnabled(checked);
+                if (wifiPorts.length === 0) return;
+                let failed = 0;
+                for (const p of wifiPorts) {
+                  try {
+                    const res = await fetch(`/api/onus/${params.id}/update-wifi-port`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ port: p.port, mode: p.mode, adminState: checked ? 'Enabled' : 'Disabled', ssid: p.ssid || '' })
+                    });
+                    if (!res.ok) failed++;
+                  } catch (err) { failed++; }
+                }
+                fetchEthPorts();
+                alert(failed === 0 ? `WiFi ${checked ? 'enabled' : 'disabled'} on the OLT.` : `${failed} port(s) gagal diubah.`);
+              }} /> Enable
             </label>
           </div>
           <table className="table table-striped table-condensed" style={{ margin: '0px' }}>

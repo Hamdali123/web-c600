@@ -29,6 +29,7 @@ model OLTDevice {
   cpu_load         Float?             @default(0)
   memory_load      Float?             @default(0)
   temperature      Float?             @default(0)
+  disabled         Boolean            @default(false)
   last_polled      DateTime?
   configuredOnus   ONUConfigured[]
   unconfiguredOnus ONUUnconfigured[]
@@ -209,6 +210,7 @@ model TR069Profile {
   id      Int     @id @default(autoincrement())
   name    String
   acs_url String
+  olt_ids String? // JSON array of bound OLT ids
 }
 
 model MikrotikRouter {
@@ -275,6 +277,7 @@ model StatusHistory {
 model User {
   id         Int           @id @default(autoincrement())
   name       String
+  username   String?       @unique
   email      String        @unique
   password   String
   role       String        @default("tech_user") // admin, tech_user
