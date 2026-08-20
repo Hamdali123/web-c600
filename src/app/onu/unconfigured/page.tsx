@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 function UnconfiguredOnuContent() {
+  const searchParams = useSearchParams();
+  const urlOltId = searchParams.get('olt_id') || '';
   const [unconfigured, setUnconfigured] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -17,7 +20,7 @@ function UnconfiguredOnuContent() {
     vlans: []
   });
 
-  const [oltSelection, setOltSelection] = useState<string>(''); // empty by default until loaded
+  const [oltSelection, setOltSelection] = useState<string>(urlOltId); // from dashboard deep-link or default
   const [ponPorts, setPonPorts] = useState<any[]>([]);
   const [ponSelection, setPonSelection] = useState<string>('0');
   

@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [selectedOltId, setSelectedOltId] = useState<string>('all');
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [authPerDay, setAuthPerDay] = useState<any[]>([]);
+  const [outage, setOutage] = useState({ losPons: 0, losOnus: 0, pwrPons: 0, pwrOnus: 0, naPons: 0, naOnus: 0, oldPons: 0, oldOnus: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export default function Dashboard() {
         if (data.olts) setOlts(data.olts);
         if (data.recentLogs) setRecentLogs(data.recentLogs);
         if (data.authPerDay) setAuthPerDay(data.authPerDay);
+        if (data.outage) setOutage(data.outage);
       } catch (e) {
         console.error(e);
       }
@@ -201,7 +203,7 @@ export default function Dashboard() {
                 <span className="pull-left margin-left los" title="ONTs with offline reason: Loss of Signal">LoS: {loading ? <i className="fa fa-spinner fa-spin"></i> : stats.los}</span>
               </a>
               <a href={`/onu/configured?status=offline${selectedOltId !== 'all' ? `&olt_id=${selectedOltId}` : ''}`}>
-                <span className="pull-right offline" title="ONTs that have never been online since the OLT was restarted">N/A: {loading ? <i className="fa fa-spinner fa-spin"></i> : (stats.offline - stats.powerFailed - stats.los)}</span>
+                <span className="pull-right offline" title="ONTs that have never been online since the OLT was restarted">N/A: {loading ? <i className="fa fa-spinner fa-spin"></i> : Math.max(0, stats.offline - stats.powerFailed - stats.los)}</span>
               </a>
               <div className="clearfix"></div>
             </div>
@@ -296,19 +298,19 @@ export default function Dashboard() {
                 </div>
                 <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
                   <i className="fa fa-scissors fa-fw text-warning" style={{ color: '#ec971f' }}></i> Fiber cuts (LOS)
-                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                  <span className="pull-right text-muted small"><strong>{loading ? <i className="fa fa-spinner fa-spin"></i> : outage.losPons}</strong> PONs / <strong>{outage.losOnus}</strong> ONUs</span>
                 </div>
                 <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
                   <i className="fa fa-plug fa-fw text-primary" style={{ color: '#337ab7' }}></i> Power fail
-                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                  <span className="pull-right text-muted small"><strong>{loading ? <i className="fa fa-spinner fa-spin"></i> : outage.pwrPons}</strong> PONs / <strong>{outage.pwrOnus}</strong> ONUs</span>
                 </div>
                 <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none' }}>
                   <i className="fa fa-question-circle fa-fw text-muted"></i> Offline N/A
-                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                  <span className="pull-right text-muted small"><strong>{loading ? <i className="fa fa-spinner fa-spin"></i> : outage.naPons}</strong> PONs / <strong>{outage.naOnus}</strong> ONUs</span>
                 </div>
                 <div className="list-group-item" style={{ borderLeft: 'none', borderRight: 'none', borderBottom: 'none' }}>
                   <i className="fa fa-calendar fa-fw text-muted" style={{ color: '#a0a0a0' }}></i> Offline for 7+ days
-                  <span className="pull-right text-muted small"><strong>0</strong> PONs / <strong>0</strong> ONUs</span>
+                  <span className="pull-right text-muted small"><strong>{loading ? <i className="fa fa-spinner fa-spin"></i> : outage.oldPons}</strong> PONs / <strong>{outage.oldOnus}</strong> ONUs</span>
                 </div>
               </div>
             </div>
@@ -368,7 +370,7 @@ export default function Dashboard() {
                   <i className="fa fa-cogs fa-fw"></i> Uptime
                   <span className="pull-right">
                     <em id={`olt-up-time-${selectedOltId}`} className="small" style={{ fontStyle: 'normal', color: '#666' }}>
-                      {selectedOlt ? `${selectedOlt.uptime || '7 days, 4 hours'}` : 'All Online'}
+                      {selectedOlt ? `${selectedOlt.uptime || 'N/A'}` : 'All Online'}
                     </em>
                     {selectedOlt?.temperature && (
                       <em id={`olt-env-temp-${selectedOltId}`} className="small text-success" style={{ marginLeft: '8px', fontStyle: 'normal', fontWeight: 'bold' }}>
@@ -397,7 +399,7 @@ export default function Dashboard() {
               <div className="list-group" style={{ margin: '0' }}>
                 {recentLogs.length > 0 ? (
                   recentLogs.map((log, index) => (
-                    <a key={index} href={log.onu_id ? `/onu/view/${log.onu_id}` : '/info'} className="list-group-item" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none' }}>
+                    <a key={index} href={log.onu_id ? `/onu/view/${log.onu_id}` : '/onu/configured'} className="list-group-item" style={{ borderRadius: '0', borderLeft: 'none', borderRight: 'none' }}>
                       <i className="fa fa-user-o fa-fw"></i> {log.action}
                       <span className="pull-right small text-muted">
                         <em>{getRelativeTime(log.createdAt)}</em>
@@ -410,7 +412,7 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-              <a href={`/info${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`} className="btn btn-default btn-block" style={{ borderTopLeftRadius: '0', borderTopRightRadius: '0', borderLeft: 'none', borderRight: 'none', borderBottom: 'none' }}>
+              <a href={`/onu/configured${selectedOltId !== 'all' ? `?olt_id=${selectedOltId}` : ''}`} className="btn btn-default btn-block" style={{ borderTopLeftRadius: '0', borderTopRightRadius: '0', borderLeft: 'none', borderRight: 'none', borderBottom: 'none' }}>
                 View All Info
               </a>
             </div>

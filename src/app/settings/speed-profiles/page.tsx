@@ -206,11 +206,7 @@ export default function SpeedProfilesPage() {
                 <thead>
                   <tr style={{ backgroundColor: '#f8f9fa' }}>
                     <th>Name</th>
-                    <th>For</th>
-                    <th>Use prefix&amp;suffix</th>
                     <th className="text-right">Speed</th>
-                    <th>Type</th>
-                    <th className="text-center">Default</th>
                     <th className="text-center">ONUs</th>
                     <th className="text-right">Action</th>
                   </tr>
@@ -242,15 +238,7 @@ export default function SpeedProfilesPage() {
                             {p.name}
                           </a>
                         </td>
-                         <td>Any</td>
-                         <td>
-                           <span style={{ background: '#5cb85c', color: '#fff', padding: '2px 8px', borderRadius: '3px', fontSize: '11px', fontWeight: 'bold' }}>Yes</span>
-                         </td>
                         <td className="text-right" style={{ fontFamily: 'monospace' }}>{speedDisplay}</td>
-                        <td>Internet</td>
-                        <td className="text-center">
-                          <input type="checkbox" checked={false} readOnly />
-                        </td>
                         <td className="text-center">
                           <Link href={`/onu/configured?speed_profile_id=${p.id}&all=1`} style={{ color: '#337ab7' }}>
                             {p._count?.onus || 0} ONUs
@@ -266,7 +254,7 @@ export default function SpeedProfilesPage() {
                   })}
                   {filteredProfiles.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center text-muted" style={{ padding: '30px' }}>
+                      <td colSpan={4} className="text-center text-muted" style={{ padding: '30px' }}>
                         No {activeSubTab} speed profiles defined.
                       </td>
                     </tr>
@@ -305,31 +293,8 @@ export default function SpeedProfilesPage() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="small text-muted">Use suffix and prefix</label>
-                    <div style={{ marginTop: '5px' }}>
-                      <label className="radio-inline" style={{ marginRight: '15px' }}>
-                        <input type="radio" value="Yes" checked={addForm.use_prefix_suffix === 'Yes'} onChange={e => setAddForm({ ...addForm, use_prefix_suffix: e.target.value })} /> Yes
-                      </label>
-                      <label className="radio-inline">
-                        <input type="radio" value="No" checked={addForm.use_prefix_suffix === 'No'} onChange={e => setAddForm({ ...addForm, use_prefix_suffix: e.target.value })} /> No
-                      </label>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="small text-muted">Type</label>
-                    <select className="form-control" value={addForm.type} onChange={e => setAddForm({ ...addForm, type: e.target.value })}>
-                      <option value="Internet">Internet</option>
-                      <option value="IPTV">IPTV</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
                     <label className="small text-muted">Speed (in kbps)</label>
                     <input type="number" className="form-control" placeholder="e.g. 51200" value={addForm.speed} onChange={e => setAddForm({ ...addForm, speed: e.target.value })} required />
-                  </div>
-                  <div className="checkbox">
-                    <label>
-                      <input type="checkbox" checked={addForm.is_default} onChange={e => setAddForm({ ...addForm, is_default: e.target.checked })} /> Default {addForm.direction} speed for new ONUs
-                    </label>
                   </div>
                 </div>
                 <div className="modal-footer">
@@ -369,31 +334,8 @@ export default function SpeedProfilesPage() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="small text-muted">Use suffix and prefix</label>
-                    <div style={{ marginTop: '5px' }}>
-                      <label className="radio-inline" style={{ marginRight: '15px' }}>
-                        <input type="radio" value="Yes" checked={editForm.use_prefix_suffix === 'Yes'} onChange={e => setEditForm({ ...editForm, use_prefix_suffix: e.target.value })} /> Yes
-                      </label>
-                      <label className="radio-inline">
-                        <input type="radio" value="No" checked={editForm.use_prefix_suffix === 'No'} onChange={e => setEditForm({ ...editForm, use_prefix_suffix: e.target.value })} /> No
-                      </label>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label className="small text-muted">Type</label>
-                    <select className="form-control" value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value })}>
-                      <option value="Internet">Internet</option>
-                      <option value="IPTV">IPTV</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
                     <label className="small text-muted">Speed (in kbps)</label>
                     <input type="number" className="form-control" value={editForm.speed} onChange={e => setEditForm({ ...editForm, speed: e.target.value })} required />
-                  </div>
-                  <div className="checkbox">
-                    <label>
-                      <input type="checkbox" checked={editForm.is_default} onChange={e => setEditForm({ ...editForm, is_default: e.target.checked })} /> Default {editForm.direction} speed for new ONUs
-                    </label>
                   </div>
                 </div>
                 <div className="modal-footer">

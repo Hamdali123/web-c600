@@ -130,9 +130,13 @@ export default function AuthPresetsPage() {
       (p.sn_pattern && p.sn_pattern.toLowerCase().includes(searchFilter.toLowerCase()));
       
     const matchesOlt = oltFilter === '' || String(p.olt_id) === oltFilter;
-    const matchesMode = modeFilter === '' || p.mode.toLowerCase() === modeFilter.toLowerCase();
+    const matchesMode = modeFilter === '' ||
+      p.mode.toLowerCase() === (modeFilter === 'route' ? 'routing' : modeFilter);
+    const matchesType = onuTypeFilter === '' ||
+      (onuTypeFilter === 'auto-detect' ? (!p.onu_type_id || p.fallback_onu_type_id) : String(p.onu_type_id) === onuTypeFilter);
+    const matchesPon = ponFilter === '' || (p.pon_type || 'gpon') === ponFilter;
     
-    return matchesSearch && matchesOlt && matchesMode;
+    return matchesSearch && matchesOlt && matchesMode && matchesType && matchesPon;
   });
 
   return (
@@ -218,6 +222,9 @@ export default function AuthPresetsPage() {
           <select className="form-control input-sm" value={onuTypeFilter} onChange={e => setOnuTypeFilter(e.target.value)}>
             <option value="">All</option>
             <option value="auto-detect">Auto-detect</option>
+            {onuTypes.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
           </select>
         </div>
 

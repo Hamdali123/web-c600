@@ -52,10 +52,15 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const handleSaveConfig = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch('/api/system/write');
+      const res = await fetch('/api/system/write', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        alert('Configuration saved successfully on all registered OLTs!');
+        const failed = (data.results || []).filter((r: any) => !r.ok);
+        if (failed.length === 0) {
+          alert(`Configuration saved successfully on all ${data.total} OLT(s)!`);
+        } else {
+          alert(`Configuration saved on ${data.savedCount}/${data.total} OLT(s). Failed: ${failed.map((f: any) => `${f.name} (${f.error || 'error'})`).join(', ')}`);
+        }
       } else {
         alert(`Error saving configuration: ${data.error}`);
       }
@@ -98,8 +103,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 <a className="dropdown-toggle" data-toggle="dropdown" href="#">Reports <span className="caret"></span></a>
                 <ul className="dropdown-menu">
                   <li><a href="/reports/authorizations">Authorizations</a></li>
-                  <li><a href="/onu/configured">Export</a></li>
-                  <li><a href="/onu/configured">Import</a></li>
                 </ul>
               </li>
               {(!user || user.role === 'admin') && (
@@ -133,7 +136,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <i className={`fa ${isDarkMode ? 'fa-sun-o' : 'fa-moon-o'} font-size-20`}></i>
                 </a>
               </li>
-              <li><a href="/auth/login" title={`Edit user ${user?.email || 'mohamadsanwani9@gmail.com'}`}><i className="fa fa-user glyphicon-white font-size-20"> </i></a></li>
+              <li><span title={`Logged in as ${user?.email || 'user'}`} style={{ color: '#9d9d9d', cursor: 'default' }}><i className="fa fa-user glyphicon-white font-size-20"></i></span></li>
               <li><a href="/auth/logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}><i className="glyphicon glyphicon-off glyphicon-white"> </i> Log out</a></li>
             </ul>
 

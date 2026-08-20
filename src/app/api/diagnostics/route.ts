@@ -78,9 +78,11 @@ export async function GET(request: Request) {
       // Accept comma-separated values (e.g. critical,warning from dashboard links)
       const values = signalFilter.split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
       const conditions: any[] = [];
-      if (values.includes('good')) conditions.push({ signal: { gt: -25 } });
-      if (values.includes('warning')) conditions.push({ signal: { lte: -25, gt: -28 } });
-      if (values.includes('critical')) conditions.push({ signal: { lte: -28 } });
+      const oltDevice = oltId ? await prisma.oLTDevice.findUnique({ where: { id: parseInt(oltId) } }) : null;
+      const threshold = oltDevice?.signal_threshold ?? -27.0;
+      if (values.includes('good')) conditions.push({ signal: { gt: threshold } });
+      if (values.includes('warning')) conditions.push({ signal: { lte: threshold, gt: -30.0 } });
+      if (values.includes('critical')) conditions.push({ signal: { lte: -30.0 } });
       if (conditions.length > 0) {
         whereClause.status = 'Online';
         if (whereClause.OR) {

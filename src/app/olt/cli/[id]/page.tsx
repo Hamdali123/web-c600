@@ -63,48 +63,68 @@ export default function OltCliPage({ params }: { params: Promise<{ id: string }>
 
             setStatus('Connecting to WebSocket server...');
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            socket = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
+            const host = window.location.hostname;
+            const isHttps = window.location.protocol === 'https:';
+            // Dev: terminal server on port 3010; behind nginx (https): /ws proxy
+            const wsUrls = isHttps
+              ? [`${wsProtocol}//${host}/ws`]
+              : [`${wsProtocol}//${host}:3010/ws`, `${wsProtocol}//${host}/ws`];
+            let wsIdx = 0;
 
-            socket.onopen = () => {
-              setStatus('Connected to Terminal Server. Authenticating to OLT...');
+            const openSocket = () => {
+              if (disposed) return;
+              if (wsIdx >= wsUrls.length) {
+                term.writeln('\r\n\x1b[31mWebSocket Connection Error. Ensure terminal-server is running on port 3010 (or nginx /ws proxy).\x1b[0m\r\n');
+                setStatus('Connection Error');
+                return;
+              }
+              const target = wsUrls[wsIdx++];
+              socket = new WebSocket(target);
 
-              const creds = {
-                ip: olt.ip_address,
-                port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
-                username: olt.telnet_user || '',
-                password: olt.telnet_pass || '',
-                protocol: olt.protocol || 'telnet',
-                vendor: olt.vendor || 'zte'
+              socket.onopen = () => {
+                setStatus('Connected to Terminal Server. Authenticating to OLT...');
+
+                const creds = {
+                  ip: olt.ip_address,
+                  port: olt.telnet_port || (olt.protocol === 'ssh' ? 22 : 23),
+                  username: olt.telnet_user || '',
+                  password: olt.telnet_pass || '',
+                  protocol: olt.protocol || 'telnet',
+                  vendor: olt.vendor || 'zte'
+                };
+
+                socket!.send(JSON.stringify({ type: 'connect', creds }));
               };
 
-              socket!.send(JSON.stringify({ type: 'connect', creds }));
+              socket.onmessage = (event) => {
+                try {
+                  const data = JSON.parse(event.data);
+                  if (data.type === 'data') {
+                    term.write(data.data);
+                    setStatus((prev) => (prev !== 'Connected' ? 'Connected' : prev));
+                  } else if (data.type === 'error') {
+                    term.writeln(`\r\n\x1b[31mError: ${data.data}\x1b[0m\r\n`);
+                    setStatus('Error: ' + data.data);
+                  } else if (data.type === 'close') {
+                    term.writeln('\r\n\x1b[33mConnection closed by server.\x1b[0m\r\n');
+                    setStatus('Disconnected');
+                  }
+                } catch (e) {}
+              };
+
+              socket.onclose = () => {
+                term.writeln('\r\n\x1b[33mWebSocket Connection Closed.\x1b[0m\r\n');
+                setStatus('Disconnected');
+              };
+
+              socket.onerror = () => {
+                term.writeln(`\r\n\x1b[33mConnection failed to ${target}, trying next endpoint...\x1b[0m\r\n`);
+                try { if (socket) socket.close(); } catch (e) {}
+                openSocket();
+              };
             };
 
-            socket.onmessage = (event) => {
-              try {
-                const data = JSON.parse(event.data);
-                if (data.type === 'data') {
-                  term.write(data.data);
-                  setStatus((prev) => (prev !== 'Connected' ? 'Connected' : prev));
-                } else if (data.type === 'error') {
-                  term.writeln(`\r\n\x1b[31mError: ${data.data}\x1b[0m\r\n`);
-                  setStatus('Error: ' + data.data);
-                } else if (data.type === 'close') {
-                  term.writeln('\r\n\x1b[33mConnection closed by server.\x1b[0m\r\n');
-                  setStatus('Disconnected');
-                }
-              } catch (e) {}
-            };
-
-            socket.onclose = () => {
-              term.writeln('\r\n\x1b[33mWebSocket Connection Closed.\x1b[0m\r\n');
-              setStatus('Disconnected');
-            };
-
-            socket.onerror = () => {
-              term.writeln('\r\n\x1b[31mWebSocket Connection Error. Ensure terminal-server is running on port 3010.\x1b[0m\r\n');
-              setStatus('Connection Error');
-            };
+            openSocket();
 
             setWs(socket);
 

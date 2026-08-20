@@ -33,18 +33,6 @@ export async function GET(request: Request) {
       take: 100
     });
 
-    // Seed some logs if empty so it looks beautiful and populated like the real system
-    if (logs.length === 0) {
-      const mockLogs = [
-        { id: 1, method: 'GET', uri: '/api/onus/signal', status: 200, duration: 42, client_ip: '103.124.22.15', api_key: 'key_bf3c8928ee2a9018', createdAt: new Date(Date.now() - 1000 * 60 * 5) },
-        { id: 2, method: 'POST', uri: '/api/onus/authorize', status: 201, duration: 1845, client_ip: '103.124.22.15', api_key: 'key_bf3c8928ee2a9018', createdAt: new Date(Date.now() - 1000 * 60 * 12) },
-        { id: 3, method: 'GET', uri: '/api/settings/olt', status: 200, duration: 15, client_ip: '192.168.1.100', api_key: 'key_cc3e9a77bdc831b1', createdAt: new Date(Date.now() - 1000 * 60 * 30) },
-        { id: 4, method: 'DELETE', uri: '/api/onus/delete/15', status: 200, duration: 921, client_ip: '103.124.22.15', api_key: 'key_bf3c8928ee2a9018', createdAt: new Date(Date.now() - 1000 * 60 * 45) },
-        { id: 5, method: 'GET', uri: '/api/onus/unconfigured', status: 500, duration: 120, client_ip: '127.0.0.1', api_key: null, createdAt: new Date(Date.now() - 1000 * 60 * 120) }
-      ];
-      return NextResponse.json(mockLogs);
-    }
-
     return NextResponse.json(logs);
   } catch (error: any) {
     console.error(error);

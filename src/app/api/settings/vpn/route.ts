@@ -25,3 +25,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+
+    await prisma.vPNTunnel.delete({ where: { id: parseInt(id) } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to delete tunnel' }, { status: 500 });
+  }
+}

@@ -84,8 +84,9 @@ export default function AuthorizationsReportPage() {
                 <tr><td colSpan={5} className="text-center">No records found.</td></tr>
               ) : logs.map(log => {
                 // Parse details (SN: ZTEG..., Name: ..., VLAN: ...)
-                const sn = log.details.match(/SN: ([\w]+)/)?.[1] || '-';
-                const name = log.details.match(/Name: ([^,]+)/)?.[1] || '-';
+                const details = log.details || '';
+                const sn = details.match(/SN: ([\w]+)/)?.[1] || '-';
+                const name = details.match(/Name: ([^,]+)/)?.[1] || '-';
                 return (
                   <tr key={log.id}>
                     <td><small>{log.user?.email || 'system'}</small></td>

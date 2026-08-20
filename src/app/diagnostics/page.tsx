@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
-export default function DiagnosticsPage() {
+function DiagnosticsContent() {
+  const searchParams = useSearchParams();
   const [onus, setOnus] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
-    olt: 'Any',
+    olt: searchParams.get('olt_id') || 'Any',
     board: 'Any',
     port: 'Any',
     zone: 'Any',
@@ -17,7 +19,7 @@ export default function DiagnosticsPage() {
     ponType: 'Any',
     status: 'Any',
     reason: 'Any',
-    signal: 'Any'
+    signal: searchParams.get('signal') || 'Any'
   });
 
   const [masterData, setMasterData] = useState<any>({
@@ -256,5 +258,13 @@ export default function DiagnosticsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DiagnosticsPage() {
+  return (
+    <Suspense fallback={<div className="text-center p-5"><i className="fa fa-spinner fa-spin fa-2x"></i></div>}>
+      <DiagnosticsContent />
+    </Suspense>
   );
 }

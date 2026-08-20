@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     const pwrFailCount = await prisma.oNUConfigured.count({
       where: {
         ...filter,
+        status: 'Offline',
         OR: [
           { offline_reason: { contains: 'power' } },
           { offline_reason: { contains: 'dying' } }
@@ -41,6 +42,7 @@ export async function GET(request: Request) {
     const losCount = await prisma.oNUConfigured.count({
       where: {
         ...filter,
+        status: 'Offline',
         offline_reason: { contains: 'los' }
       }
     });
@@ -73,6 +75,31 @@ export async function GET(request: Request) {
     const totalAuthorized = await prisma.oNUConfigured.count({
       where: filter
     });
+
+    // PON outage: group offline ONUs by PON port and reason
+    const offlineOnus = await prisma.oNUConfigured.findMany({
+      where: { ...filter, status: 'Offline' },
+      select: { pon_port: true, offline_reason: true, last_online: true }
+    });
+
+    const isLos = (r: string | null) => !!r && r.toLowerCase().includes('los');
+    const isPwr = (r: string | null) => !!r && (r.toLowerCase().includes('power') || r.toLowerCase().includes('dying'));
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const losOnus = offlineOnus.filter(o => isLos(o.offline_reason));
+    const pwrOnus = offlineOnus.filter(o => isPwr(o.offline_reason));
+    const naOnus = offlineOnus.filter(o => !isLos(o.offline_reason) && !isPwr(o.offline_reason));
+    const oldOnus = offlineOnus.filter(o => o.last_online && o.last_online < sevenDaysAgo);
+
+    const portOf = (pon: string | null) => pon ? pon.replace(/:\d+$/, '') : null;
+    const distinctPons = (list: any[]) => new Set(list.map(o => portOf(o.pon_port)).filter(Boolean)).size;
+
+    const outage = {
+      losPons: distinctPons(losOnus), losOnus: losOnus.length,
+      pwrPons: distinctPons(pwrOnus), pwrOnus: pwrOnus.length,
+      naPons: distinctPons(naOnus), naOnus: naOnus.length,
+      oldPons: distinctPons(oldOnus), oldOnus: oldOnus.length
+    };
 
     const olts = await prisma.oLTDevice.findMany({
        select: { 
@@ -129,7 +156,8 @@ export async function GET(request: Request) {
       olts: olts,
       recentLogs: recentLogs,
       notifications: notifications,
-      authPerDay: authPerDay
+      authPerDay: authPerDay,
+      outage: outage
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'

@@ -31,6 +31,8 @@ export default function TaskHistoryPage() {
       if (filters.olt && filters.olt !== '0') params.append('olt', filters.olt);
       if (filters.user !== 'Any') params.append('user', filters.user);
       if (filters.action !== 'Any') params.append('action', filters.action);
+      if (filters.from) params.append('from', filters.from);
+      if (filters.to) params.append('to', filters.to);
       
       const res = await fetch('/api/tasks?' + params.toString());
       const data = await res.json();

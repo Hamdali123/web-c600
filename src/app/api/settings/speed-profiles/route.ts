@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 export async function GET() {
   try {
     const profiles = await prisma.speedProfile.findMany({
-      orderBy: { download: 'asc' }
+      orderBy: { download: 'asc' },
+      include: { _count: { select: { onus: true } } }
     });
     return NextResponse.json(profiles);
   } catch (error) {

@@ -98,12 +98,12 @@ function ConfiguredOnuContent() {
 
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
-    olt: searchParams.get('olt') || 'all',
-    zone: searchParams.get('zone') || 'all',
+    olt: searchParams.get('olt') || searchParams.get('olt_id') || 'all',
+    zone: searchParams.get('zone') || searchParams.get('zone_id') || 'all',
     odb: searchParams.get('odb') || 'all',
     vlan: searchParams.get('vlan') || 'all',
     onu_type: searchParams.get('onu_type') || 'all',
-    profile: searchParams.get('profile') || 'all',
+    profile: searchParams.get('profile') || searchParams.get('speed_profile_id') || 'all',
     status: searchParams.get('status') || '',
     reason: searchParams.get('reason') || '',
     signal_status: searchParams.get('signal_status') || '',
@@ -498,19 +498,16 @@ function ConfiguredOnuContent() {
           
           {userRole !== 'readonly_users' && (
             <div style={{ position: 'absolute', right: '0', top: '0' }}>
-              <label style={{ fontSize: '12px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal' }}>
+              <input
+                type="file"
+                accept=".csv"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleImportCsv}
+              />
+              <a style={{ fontSize: '12px', cursor: 'pointer', color: '#337ab7', margin: 0, fontWeight: 'normal', textDecoration: 'none' }} onClick={() => fileInputRef.current?.click()}>
                 Import
-                <input type="file" style={{ display: 'none' }} accept=".csv" onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = e.target.value;
-                      fileInputRef.current.click();
-                    } else {
-                      alert('Fitur upload CSV sedang diproses, nantikan updatenya!');
-                    }
-                  }
-                }} />
-              </label>
+              </a>
               <span style={{ color: '#337ab7', fontSize: '12px', margin: '0 5px' }}>/</span>
               <a href="/api/onus/export" target="_blank" style={{ fontSize: '12px', color: '#337ab7', cursor: 'pointer', textDecoration: 'none' }}>Export</a>
             </div>
@@ -572,13 +569,6 @@ function ConfiguredOnuContent() {
 
             {userRole !== 'readonly_users' && (
               <div className="text-right" style={{ marginTop: '10px' }}>
-                <input 
-                  type="file" 
-                  accept=".csv" 
-                  ref={fileInputRef} 
-                  style={{ display: 'none' }} 
-                  onChange={handleImportCsv} 
-                />
                 <a href="/api/onus/export" target="_blank" className="btn btn-link" title="Export" style={{ padding: '0 10px', fontSize: '13px' }}>
                   <i className="fa fa-upload"></i> Export
                 </a>
